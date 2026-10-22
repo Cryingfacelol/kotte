@@ -52,7 +52,7 @@ namespace kotte
         update_gameplay(delta_time);
         update_timed_gameplay(delta_time);
         resolve_gameplay_facts();
-        apply_structural_mutations();
+        apply_structural_mutations();//destroys/creates entities
         update_presentation(delta_time);
         render();
     }
@@ -101,30 +101,31 @@ namespace kotte
 
     void Application::update_timed_gameplay(float delta_time){
         // This list is independent of camera queries, so off-screen fuses advance.
+        //if (time_until_player_can_be_hurt_ >0) { time_until_player_can_be_hurt_ -= delta_time; }
         for(const EntityHandle bomb_handle : active_bomb_handles_){
-            Entity* bomb = entities_.try_get(bomb_handle);
-            if(bomb == nullptr || !bomb->bomb_state.has_value()
-                || bomb->bomb_state->detonation_requested){
-                continue;
-            }
+        Entity* bomb = entities_.try_get(bomb_handle);
+        if(bomb == nullptr || !bomb->bomb_state.has_value()
+            || bomb->bomb_state->detonation_requested){
+            continue;
+        }
 
-            BombState& state = *bomb->bomb_state;
-            state.fuse_remaining -= delta_time;
-            if(state.fuse_remaining > 0.0f){
-                continue;
-            }
+        BombState& state = *bomb->bomb_state;
+        state.fuse_remaining -= delta_time;
+        if(state.fuse_remaining > 0.0f){
+            continue;
+        }
 
-            state.fuse_remaining = 0.0f;
-            state.detonation_requested = true;
+        state.fuse_remaining = 0.0f;
+        state.detonation_requested = true;
 
-            // The fact owns every value needed by later phases; it does not
-            // borrow the bomb that will eventually request its own destruction.
-            bomb_detonated_facts_.push_back({
-                bomb_handle,
-                state.owner,
-                bomb->world_position,
-                state.blast_range
-            });
+        // The fact owns every value needed by later phases; it does not
+        // borrow the bomb that will eventually request its own destruction.
+        bomb_detonated_facts_.push_back({
+            bomb_handle,
+            state.owner,
+            bomb->world_position,
+            state.blast_range
+        });
         }
     }
 
@@ -151,6 +152,15 @@ namespace kotte
             blast_effects_.push_back(std::move(effect));
         }
 
+        //if (player_is_invincible_ && time_until_player_can_be_hurt_ <= 0) { player_is_invincible_ = false; }
+        //if (player_is_colliding_with_enemy() && !player_is_invincible_) { player_is_invincible_ = true; time_until_player_can_be_hurt_ = damage_cooldown_; }
+       
+        if(player_health_ <= 0)
+        {
+            //destroy_entity_requests_.push_back({ player_handle_ });
+            //make it not do this when player is already dead?
+         //add change in gamestate
+        }
         bomb_detonated_facts_.clear();
     }
 
@@ -323,7 +333,7 @@ namespace kotte
         std::erase_if(active_bomb_handles_, [this](EntityHandle handle){
             return !entities_.contains(handle);
         });
-
+        //if(!entities_.contains(player_handle_){player_handle_ = {};}
         destroy_entity_requests_.clear();
     }
 
@@ -362,6 +372,9 @@ namespace kotte
                 break;
             case EntityKind::player:
                 // Player-hit consequences are outside the Week 6 lifetime seam.
+                //player_loses_health();
+                /*if (player_health_ > 0) {  }*/
+                /*player_health_ - 1;*/
                 break;
             }
         }
@@ -546,6 +559,9 @@ namespace kotte
         DrawText(diagnostics.c_str(), 10, window_.height() - 54, 20, RAYWHITE);
 
         DrawText("move: WASD/arrows | bomb: Space | quit: Q/Escape", 10, window_.height() - 30, 20, LIGHTGRAY);
+
+        diagnostics = std::format("player health: {}", player_health_);
+        DrawText(diagnostics.c_str(), 10, window_.height() - 100, 20, RAYWHITE);
     }
 
     void Application::populate_entities(){
@@ -553,7 +569,7 @@ namespace kotte
         // relocate slot storage. Handles remain valid even if this estimate grows.
         entities_.reserve(map_.tile_count() / 4);
 
-        const Entity player_entity{EntityKind::player, {tile_size_ * 2.5f, tile_size_ * 2.5f}};
+        const Entity player_entity{ EntityKind::player, {tile_size_ * 2.5f, tile_size_ * 2.5f}};
         player_handle_ = entities_.create(player_entity);
         spatial_grid_.insert(player_handle_, entity_world_bounds(player_entity));
 
@@ -643,7 +659,21 @@ namespace kotte
         const Vector2 top_left = entity.world_position - Vector2{size.x / 2.0f, size.y};
         return {top_left.x, top_left.y, size.x, size.y};
     }
-
+    bool Application::player_is_colliding_with_enemy() {
+        bool collided = false;
+        const SpatialQuery spatial_query = spatial_grid_.query(entity_collision_bounds(player()));
+        
+        for (const EntityHandle& entity_handle : spatial_query.entity_handles)
+        {
+            const Entity& chosen_entity = entity(entity_handle);
+            if (chosen_entity.kind == EntityKind::enemy) //doesnt kill health if not the right kind
+            {
+                if (player_health_ > 0 && !player_is_invincible_) { player_health_--; player_is_invincible_ = true; }//needs to have a cooldown somehow
+                if (collided == false) { collided = true; }
+            }
+        }
+        return collided;
+    }
     bool Application::entity_movement_is_blocked(
         EntityHandle moving_entity_handle,
         Vector2 proposed_position){

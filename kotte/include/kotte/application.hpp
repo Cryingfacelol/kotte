@@ -102,6 +102,7 @@ namespace kotte
         void render();
         void populate_entities();
         void initialize_enemies();
+        bool player_is_colliding_with_enemy();
         [[nodiscard]] Entity& entity(EntityHandle handle) noexcept;
         [[nodiscard]] const Entity& entity(EntityHandle handle) const noexcept;
         [[nodiscard]] Entity& player() noexcept;
@@ -139,6 +140,11 @@ namespace kotte
         static constexpr Color crate_color_{0xb0, 0x72, 0x3c, 0xff};
         static constexpr Color enemy_color_{0xd9, 0x4f, 0x70, 0xff};
         static constexpr Color wall_color_{0x78, 0x5f, 0x47, 0xff};
+        int player_health_ = 5;
+        bool player_is_invincible_ = false;
+        float time_until_player_can_be_hurt_;
+        static constexpr float damage_cooldown_ = 15.0f;
+
 
         Window window_; // Constructed first, destroyed last.
         Camera camera_;
