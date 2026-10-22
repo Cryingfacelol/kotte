@@ -154,7 +154,7 @@ namespace kotte
 
         //if (player_is_invincible_ && time_until_player_can_be_hurt_ <= 0) { player_is_invincible_ = false; }
         //if (player_is_colliding_with_enemy() && !player_is_invincible_) { player_is_invincible_ = true; time_until_player_can_be_hurt_ = damage_cooldown_; }
-       
+        (void)player_is_colliding_with_enemy();
         if(player_health_ <= 0)
         {
             //destroy_entity_requests_.push_back({ player_handle_ });
@@ -372,8 +372,7 @@ namespace kotte
                 break;
             case EntityKind::player:
                 // Player-hit consequences are outside the Week 6 lifetime seam.
-                //player_loses_health();
-                /*if (player_health_ > 0) {  }*/
+                if (player_health_ > 0) { player_loses_health(); }
                 /*player_health_ - 1;*/
                 break;
             }
@@ -401,7 +400,9 @@ namespace kotte
             }
         }
     }
-
+    void Application::player_loses_health() {
+        player_health_--;
+    }
     void Application::update_camera(float delta_time) noexcept{
         (void) delta_time; // name the argument to avoid the static analyzer yelling at us. :) We'll animate the camera later.
         camera_.set_viewport_size(window_.size());
@@ -668,7 +669,7 @@ namespace kotte
             const Entity& chosen_entity = entity(entity_handle);
             if (chosen_entity.kind == EntityKind::enemy) //doesnt kill health if not the right kind
             {
-                if (player_health_ > 0 && !player_is_invincible_) { player_health_--; player_is_invincible_ = true; }//needs to have a cooldown somehow
+                if (player_health_ > 0 ) { player_health_--; }//needs to have a cooldown somehow
                 if (collided == false) { collided = true; }
             }
         }
