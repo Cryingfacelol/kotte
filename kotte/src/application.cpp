@@ -157,9 +157,9 @@ namespace kotte
         (void)player_is_colliding_with_enemy();
         if(player_health_ <= 0)
         {
-            //destroy_entity_requests_.push_back({ player_handle_ });
+            player_is_alive_ = false;
             //make it not do this when player is already dead?
-         //add change in gamestate
+            //add change in gamestate
         }
         bomb_detonated_facts_.clear();
     }
@@ -323,6 +323,7 @@ namespace kotte
             assert(destroyed);
             (void) destroyed;
         }
+        if (!player_is_alive_) { destroy_player(); create_player(); }
 
         // These update lists are non-owning views. A single cleanup pass keeps
         // their iteration dense without teaching each destruction source about
@@ -333,7 +334,7 @@ namespace kotte
         std::erase_if(active_bomb_handles_, [this](EntityHandle handle){
             return !entities_.contains(handle);
         });
-        //if(!entities_.contains(player_handle_){player_handle_ = {};}
+        
         destroy_entity_requests_.clear();
     }
 
@@ -371,9 +372,7 @@ namespace kotte
                 blocked_by_crate = true;
                 break;
             case EntityKind::player:
-                // Player-hit consequences are outside the Week 6 lifetime seam.
                 if (player_health_ > 0) { player_loses_health(); }
-                /*player_health_ - 1;*/
                 break;
             }
         }
@@ -565,14 +564,31 @@ namespace kotte
         DrawText(diagnostics.c_str(), 10, window_.height() - 100, 20, RAYWHITE);
     }
 
+    void Application::create_player() {
+        const Entity player_entity{ EntityKind::player, {tile_size_ * 2.5f, tile_size_ * 2.5f} };
+        player_handle_ = entities_.create(player_entity);
+        spatial_grid_.insert(player_handle_, entity_world_bounds(player_entity));
+        player_health_ = player_max_health_;
+        player_is_alive_ = true;
+        //player_is_invincible_ = false;
+    }
+
+    void Application::destroy_player() {
+        const Entity* doomed = entities_.try_get(player_handle_);
+        if (doomed == nullptr) {
+            return;
+        }
+        spatial_grid_.remove(player_handle_, entity_world_bounds(*doomed));
+        const bool destroyed = entities_.destroy(player_handle_);
+        assert(destroyed);
+        (void)destroyed;
+    }
     void Application::populate_entities(){
         // Match the generation density so initial creation does not repeatedly
         // relocate slot storage. Handles remain valid even if this estimate grows.
         entities_.reserve(map_.tile_count() / 4);
 
-        const Entity player_entity{ EntityKind::player, {tile_size_ * 2.5f, tile_size_ * 2.5f}};
-        player_handle_ = entities_.create(player_entity);
-        spatial_grid_.insert(player_handle_, entity_world_bounds(player_entity));
+        create_player();
 
         for(int y = 1; y < map_.height() - 1; ++y){
             for(int x = 1; x < map_.width() - 1; ++x){
@@ -666,10 +682,16 @@ namespace kotte
         
         for (const EntityHandle& entity_handle : spatial_query.entity_handles)
         {
+            if (entities_.try_get(entity_handle) == nullptr || entities_.try_get(player_handle_) == nullptr) {
+                continue;
+            }
             const Entity& chosen_entity = entity(entity_handle);
+            if (!CheckCollisionRecs(entity_world_bounds(chosen_entity), entity_world_bounds(player()))) {
+                continue;
+            }
             if (chosen_entity.kind == EntityKind::enemy) //doesnt kill health if not the right kind
             {
-                if (player_health_ > 0 ) { player_health_--; }//needs to have a cooldown somehow
+                player_loses_health();
                 if (collided == false) { collided = true; }
             }
         }
