@@ -94,9 +94,11 @@ namespace kotte
 
     void Application::update_gameplay(float delta_time){
         // The player and every enemy are movers; each asks its own collision question.
-        update_player(delta_time);
+        if (player_is_alive_) { update_player(delta_time); }
         update_enemies(delta_time);
-        queue_bomb_placement();
+        if (player_is_alive_) {
+            queue_bomb_placement();
+        }
     }
 
     void Application::update_timed_gameplay(float delta_time){
@@ -154,7 +156,7 @@ namespace kotte
 
         //if (player_is_invincible_ && time_until_player_can_be_hurt_ <= 0) { player_is_invincible_ = false; }
         //if (player_is_colliding_with_enemy() && !player_is_invincible_) { player_is_invincible_ = true; time_until_player_can_be_hurt_ = damage_cooldown_; }
-        (void)player_is_colliding_with_enemy();
+        if (player_is_alive_) { (void)player_is_colliding_with_enemy(); }
         if(player_health_ <= 0)
         {
             player_is_alive_ = false;
@@ -178,7 +180,7 @@ namespace kotte
             return effect.remaining_seconds <= 0.0f;
         });
 
-        update_camera(delta_time);
+        if (player_is_alive_) { update_camera(delta_time); }
     }
 
     void Application::update_player(float delta_time){
@@ -323,7 +325,7 @@ namespace kotte
             assert(destroyed);
             (void) destroyed;
         }
-        if (!player_is_alive_) { destroy_player(); create_player(); }
+        if (!player_is_alive_) { destroy_player();}
 
         // These update lists are non-owning views. A single cleanup pass keeps
         // their iteration dense without teaching each destruction source about
