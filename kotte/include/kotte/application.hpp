@@ -144,11 +144,11 @@ namespace kotte
         static constexpr Color enemy_color_{0xd9, 0x4f, 0x70, 0xff};
         static constexpr Color wall_color_{0x78, 0x5f, 0x47, 0xff};
         int player_health_;
-        int player_max_health_ = 100;
+        int player_max_health_ = 10;
         bool player_is_alive_ = true;
         bool player_is_invincible_ = false;
         float time_until_player_can_be_hurt_;
-        static constexpr float damage_cooldown_ = 15.0f;
+        static constexpr float damage_cooldown_ = 0.5f;
 
 
         Window window_; // Constructed first, destroyed last.

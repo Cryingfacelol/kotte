@@ -103,7 +103,7 @@ namespace kotte
 
     void Application::update_timed_gameplay(float delta_time){
         // This list is independent of camera queries, so off-screen fuses advance.
-        //if (time_until_player_can_be_hurt_ >0) { time_until_player_can_be_hurt_ -= delta_time; }
+        if (time_until_player_can_be_hurt_ >0) { time_until_player_can_be_hurt_ -= delta_time; }
         for(const EntityHandle bomb_handle : active_bomb_handles_){
         Entity* bomb = entities_.try_get(bomb_handle);
         if(bomb == nullptr || !bomb->bomb_state.has_value()
@@ -153,16 +153,20 @@ namespace kotte
 
             blast_effects_.push_back(std::move(effect));
         }
-
-        //if (player_is_invincible_ && time_until_player_can_be_hurt_ <= 0) { player_is_invincible_ = false; }
-        //if (player_is_colliding_with_enemy() && !player_is_invincible_) { player_is_invincible_ = true; time_until_player_can_be_hurt_ = damage_cooldown_; }
-        if (player_is_alive_) { (void)player_is_colliding_with_enemy(); }
-        if(player_health_ <= 0)
-        {
-            player_is_alive_ = false;
-            //make it not do this when player is already dead?
-            //add change in gamestate
+        if (player_is_alive_) {
+            if (player_is_invincible_ && time_until_player_can_be_hurt_ <= 0) { player_is_invincible_ = false; }
+            if (player_is_colliding_with_enemy() && !player_is_invincible_) 
+            { 
+                player_is_invincible_ = true; 
+                time_until_player_can_be_hurt_ = damage_cooldown_; 
+            }
+            if(player_health_ <= 0)
+            {
+                player_is_alive_ = false;
+            //TODO:add change in gamestate
+            }
         }
+        
         bomb_detonated_facts_.clear();
     }
 
@@ -374,7 +378,7 @@ namespace kotte
                 blocked_by_crate = true;
                 break;
             case EntityKind::player:
-                if (player_health_ > 0) { player_loses_health(); }
+                if (player_is_invincible_ == false && player_health_ > 0) { player_loses_health(); }
                 break;
             }
         }
@@ -693,7 +697,7 @@ namespace kotte
             }
             if (chosen_entity.kind == EntityKind::enemy) //doesnt kill health if not the right kind
             {
-                player_loses_health();
+                if (player_is_invincible_ == false) { player_loses_health(); }
                 if (collided == false) { collided = true; }
             }
         }
