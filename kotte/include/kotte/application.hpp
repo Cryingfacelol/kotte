@@ -38,7 +38,8 @@ namespace kotte
             int window_height,
             std::string_view title,
             std::uint64_t seed,
-            int target_fps = 0);
+            int target_fps = 0
+        );
 
         Application(const Application&) = delete;
         Application& operator=(const Application&) = delete;
@@ -71,6 +72,12 @@ namespace kotte
         struct BlastEffect final {
             std::vector<Vector2> tile_centres;
             float remaining_seconds = 0.0f;
+        };
+
+        enum GameState {
+            playing,
+            win,
+            lose
         };
 
         void run_frame(float delta_time);
@@ -149,6 +156,7 @@ namespace kotte
         bool player_is_invincible_ = false;
         float time_until_player_can_be_hurt_;
         static constexpr float damage_cooldown_ = 0.5f;
+        GameState current_game_state_;
 
 
         Window window_; // Constructed first, destroyed last.

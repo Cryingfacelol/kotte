@@ -23,7 +23,8 @@ namespace kotte
         , spatial_grid_{{
             static_cast<float>(map_.width() * tile_size_),
             static_cast<float>(map_.height() * tile_size_)}, spatial_cell_size_}
-        , seed_{seed}{
+        , seed_{seed}
+        , current_game_state_{GameState::playing} {
         populate_entities();
         initialize_enemies();
     }
@@ -47,13 +48,16 @@ namespace kotte
         //
         // Keeping one call site per phase makes event lifetime and mutation
         // boundaries visible as the simulation grows.
+       
         begin_frame();
         collect_frame_actions();
-        update_gameplay(delta_time);
-        update_timed_gameplay(delta_time);
-        resolve_gameplay_facts();
-        apply_structural_mutations();//destroys/creates entities
-        update_presentation(delta_time);
+        if (current_game_state_ == playing) {
+            update_gameplay(delta_time);
+            update_timed_gameplay(delta_time);
+            resolve_gameplay_facts();
+            apply_structural_mutations();//destroys/creates entities
+            update_presentation(delta_time);
+        }
         render();
     }
 
@@ -67,29 +71,38 @@ namespace kotte
     }
 
     void Application::collect_frame_actions() noexcept{
-        if(IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_Q)){
-            request_exit();
-        }
-        frame_actions_.place_bomb = IsKeyPressed(KEY_SPACE);
+        if (current_game_state_ == playing) {
+            if(IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_Q)){
+                request_exit();
+            }
+            frame_actions_.place_bomb = IsKeyPressed(KEY_SPACE);
 
-        Vector2& movement_direction = frame_actions_.player_movement_direction;
-        if(IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A)){
-            movement_direction.x -= 1.0f;
-        }
-        if(IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D)){
-            movement_direction.x += 1.0f;
-        }
-        if(IsKeyDown(KEY_UP) || IsKeyDown(KEY_W)){
-            movement_direction.y -= 1.0f;
-        }
-        if(IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S)){
-            movement_direction.y += 1.0f;
-        }
+            Vector2& movement_direction = frame_actions_.player_movement_direction;
+            if(IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A)){
+                movement_direction.x -= 1.0f;
+            }
+            if(IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D)){
+                movement_direction.x += 1.0f;
+            }
+            if(IsKeyDown(KEY_UP) || IsKeyDown(KEY_W)){
+                movement_direction.y -= 1.0f;
+            }
+            if(IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S)){
+                movement_direction.y += 1.0f;
+            }
 
-        // Normalize intent before simulation so bindings cannot change movement speed.
-        if(movement_direction.x != 0.0f || movement_direction.y != 0.0f){
-            movement_direction = Vector2Normalize(movement_direction);
+            // Normalize intent before simulation so bindings cannot change movement speed.
+            if(movement_direction.x != 0.0f || movement_direction.y != 0.0f){
+                movement_direction = Vector2Normalize(movement_direction);
+            }   
         }
+        if (current_game_state_ == win) {
+            //TODO:add restart
+        }
+        if (current_game_state_ == lose) {
+            //TODO:add restart
+        }
+        
     }
 
     void Application::update_gameplay(float delta_time){
@@ -99,6 +112,7 @@ namespace kotte
         if (player_is_alive_) {
             queue_bomb_placement();
         }
+        
     }
 
     void Application::update_timed_gameplay(float delta_time){
@@ -163,7 +177,7 @@ namespace kotte
             if(player_health_ <= 0)
             {
                 player_is_alive_ = false;
-            //TODO:add change in gamestate
+                current_game_state_ = lose;
             }
         }
         
@@ -416,158 +430,166 @@ namespace kotte
 
     void Application::render(){
         Frame frame{background_color_};
+        if (current_game_state_ == playing) {
+            const Rectangle world_view = camera_.world_view();
+            const TileRange visible_tiles = map_.tiles_overlapping(world_view, tile_size_);
+            std::size_t tiles_rendered = 0;
 
-        const Rectangle world_view = camera_.world_view();
-        const TileRange visible_tiles = map_.tiles_overlapping(world_view, tile_size_);
-        std::size_t tiles_rendered = 0;
+            for(int y = visible_tiles.first_row; y < visible_tiles.past_last_row; ++y){
+                for(int x = visible_tiles.first_column; x < visible_tiles.past_last_column; ++x){
+                    const Tile& tile = map_.at(x, y);
+                    const Color color = tile.type == TileType::wall
+                        ? wall_color_
+                        : floor_colors_[tile.variation % 3];
 
-        for(int y = visible_tiles.first_row; y < visible_tiles.past_last_row; ++y){
-            for(int x = visible_tiles.first_column; x < visible_tiles.past_last_column; ++x){
-                const Tile& tile = map_.at(x, y);
-                const Color color = tile.type == TileType::wall
-                    ? wall_color_
-                    : floor_colors_[tile.variation % 3];
+                    const Vector2 tile_world_position{
+                        static_cast<float>(x * tile_size_),
+                        static_cast<float>(y * tile_size_)
+                    };
+                    const Vector2 tile_screen_position = camera_.world_to_screen(tile_world_position);
 
-                const Vector2 tile_world_position{
-                    static_cast<float>(x * tile_size_),
-                    static_cast<float>(y * tile_size_)
-                };
-                const Vector2 tile_screen_position = camera_.world_to_screen(tile_world_position);
-
-                DrawRectangle(
-                    static_cast<int>(std::floor(tile_screen_position.x)),
-                    static_cast<int>(std::floor(tile_screen_position.y)),
-                    tile_size_ - 1,
-                    tile_size_ - 1,
-                    color);
-                ++tiles_rendered;
+                    DrawRectangle(
+                        static_cast<int>(std::floor(tile_screen_position.x)),
+                        static_cast<int>(std::floor(tile_screen_position.y)),
+                        tile_size_ - 1,
+                        tile_size_ - 1,
+                        color);
+                    ++tiles_rendered;
+                }
             }
-        }
 
-        const SpatialQuery spatial_query = spatial_grid_.query(world_view);
-        std::size_t exact_visibility_tests = 0;
-        std::size_t visible_entities = 0;
-        renderer_.clear();
+            const SpatialQuery spatial_query = spatial_grid_.query(world_view);
+            std::size_t exact_visibility_tests = 0;
+            std::size_t visible_entities = 0;
+            renderer_.clear();
 
-        // Blast effects are short-lived presentation values, not authoritative
-        // entities. Rebuilding commands here keeps their lifetime out of gameplay.
-        constexpr float blast_inset = 3.0f;
-        for(const BlastEffect& effect : blast_effects_){
-            for(const Vector2 tile_world_centre : effect.tile_centres){
-                Rectangle bounds{
-                    tile_world_centre.x - static_cast<float>(tile_size_) / 2.0f + blast_inset,
-                    tile_world_centre.y - static_cast<float>(tile_size_) / 2.0f + blast_inset,
-                    static_cast<float>(tile_size_) - blast_inset * 2.0f,
-                    static_cast<float>(tile_size_) - blast_inset * 2.0f
-                };
+            // Blast effects are short-lived presentation values, not authoritative
+            // entities. Rebuilding commands here keeps their lifetime out of gameplay.
+            constexpr float blast_inset = 3.0f;
+            for(const BlastEffect& effect : blast_effects_){
+                for(const Vector2 tile_world_centre : effect.tile_centres){
+                    Rectangle bounds{
+                        tile_world_centre.x - static_cast<float>(tile_size_) / 2.0f + blast_inset,
+                        tile_world_centre.y - static_cast<float>(tile_size_) / 2.0f + blast_inset,
+                        static_cast<float>(tile_size_) - blast_inset * 2.0f,
+                        static_cast<float>(tile_size_) - blast_inset * 2.0f
+                    };
+                    if(!CheckCollisionRecs(bounds, world_view)){
+                        continue;
+                    }
+
+                    const Vector2 screen_position = camera_.world_to_screen({bounds.x, bounds.y});
+                    bounds.x = screen_position.x;
+                    bounds.y = screen_position.y;
+                    renderer_.submit({
+                        bounds,
+                        blast_color_,
+                        RenderLayer::effect,
+                        tile_world_centre.y,
+                        0.3f
+                    });
+                }
+            }
+
+            // The spatial query replaces Week 3's complete entity scan. Its result is
+            // only a candidate list, so every candidate still needs an exact test.
+            for(const EntityHandle entity_handle : spatial_query.entity_handles){
+                const Entity* visible_candidate = entities_.try_get(entity_handle);
+                if(visible_candidate == nullptr){
+                    continue;
+                }
+
+                Rectangle bounds = entity_world_bounds(*visible_candidate);
+                ++exact_visibility_tests;
                 if(!CheckCollisionRecs(bounds, world_view)){
                     continue;
                 }
 
+                ++visible_entities;
                 const Vector2 screen_position = camera_.world_to_screen({bounds.x, bounds.y});
                 bounds.x = screen_position.x;
                 bounds.y = screen_position.y;
+                const RenderLayer layer = visible_candidate->kind == EntityKind::bomb
+                    ? RenderLayer::ground
+                    : RenderLayer::world;
                 renderer_.submit({
                     bounds,
-                    blast_color_,
-                    RenderLayer::effect,
-                    tile_world_centre.y,
-                    0.3f
+                    entity_color(visible_candidate->kind),
+                    layer,
+                    visible_candidate->world_position.y,
+                    entity_roundness(visible_candidate->kind)
                 });
             }
+            renderer_.sort();
+            renderer_.execute();
+
+            std::string diagnostics;
+            const double percent_of_entities = entities_.live_count() == 0
+                ? 0.0
+                : 100.0 * static_cast<double>(visible_entities) / static_cast<double>(entities_.live_count());
+
+            // A naive collision loop would test every entity for every movement
+            // attempt. Compare that full-scan count with the local broad-phase
+            // candidates; this is candidate reduction, not a measured FPS gain.
+            const double naive_collision_work = static_cast<double>(collision_diagnostics_.movement_attempts)
+                * static_cast<double>(entities_.live_count());
+            const double broad_phase_reduction = naive_collision_work == 0.0
+                ? 0.0
+                : 100.0 * (1.0 - static_cast<double>(collision_diagnostics_.unique_candidates) / naive_collision_work);
+
+            DrawFPS(GetScreenWidth() - 100, 2);
+
+            const double percent_of_world = map_.tile_count() == 0 ? 0.0 : 100.0 * static_cast<double>(tiles_rendered) / static_cast<double>(map_.tile_count());
+            diagnostics = std::format(
+                "tiles rendered: {} ({:.1f}% of world)", tiles_rendered, percent_of_world);
+            DrawText(diagnostics.c_str(), 10, 10, 20, RAYWHITE);
+
+            diagnostics = std::format(
+                "entities: {} visible ({:.1f}% of {}) | {} visibility tests | {} commands",
+                visible_entities,
+                percent_of_entities,
+                entities_.live_count(),
+                exact_visibility_tests,
+                renderer_.command_count());
+            DrawText(diagnostics.c_str(), 10, 34, 20, RAYWHITE);
+
+            diagnostics = std::format(
+                "enemies updated: {} | active bombs: {} | blast effects: {}",
+                collision_diagnostics_.enemy_updates,
+                active_bomb_handles_.size(),
+                blast_effects_.size());
+            DrawText(diagnostics.c_str(), 10, 58, 20, RAYWHITE);
+
+            diagnostics = std::format(
+                "broad phase: {} candidates | {:.1f}% fewer than full scan",
+                collision_diagnostics_.unique_candidates, broad_phase_reduction);
+            DrawText(diagnostics.c_str(), 10, 82, 20, RAYWHITE);
+
+            diagnostics = std::format(
+                "narrow phase: {} exact tests | {} contacts",
+                collision_diagnostics_.exact_tests,
+                collision_diagnostics_.contacts);
+            DrawText(diagnostics.c_str(), 10, 106, 20, RAYWHITE);
+
+            diagnostics = std::format("seed: {}", seed_);
+            DrawText(diagnostics.c_str(), 10, window_.height() - 78, 20, RAYWHITE);
+
+            diagnostics = std::format(
+                "world: {} x {} tiles | {} total", map_.width(), map_.height(), map_.tile_count());
+            DrawText(diagnostics.c_str(), 10, window_.height() - 54, 20, RAYWHITE);
+
+            DrawText("move: WASD/arrows | bomb: Space | quit: Q/Escape", 10, window_.height() - 30, 20, LIGHTGRAY);
+
+            diagnostics = std::format("player health: {}", player_health_);
+            DrawText(diagnostics.c_str(), 10, window_.height() - 100, 20, RAYWHITE);
         }
-
-        // The spatial query replaces Week 3's complete entity scan. Its result is
-        // only a candidate list, so every candidate still needs an exact test.
-        for(const EntityHandle entity_handle : spatial_query.entity_handles){
-            const Entity* visible_candidate = entities_.try_get(entity_handle);
-            if(visible_candidate == nullptr){
-                continue;
-            }
-
-            Rectangle bounds = entity_world_bounds(*visible_candidate);
-            ++exact_visibility_tests;
-            if(!CheckCollisionRecs(bounds, world_view)){
-                continue;
-            }
-
-            ++visible_entities;
-            const Vector2 screen_position = camera_.world_to_screen({bounds.x, bounds.y});
-            bounds.x = screen_position.x;
-            bounds.y = screen_position.y;
-            const RenderLayer layer = visible_candidate->kind == EntityKind::bomb
-                ? RenderLayer::ground
-                : RenderLayer::world;
-            renderer_.submit({
-                bounds,
-                entity_color(visible_candidate->kind),
-                layer,
-                visible_candidate->world_position.y,
-                entity_roundness(visible_candidate->kind)
-            });
+        if (current_game_state_ == win) {
+            DrawText("YOU HAVE WON", int(window_.width() * 0.5f) - 13 * 12, int(window_.height() * 0.5f), 40, RAYWHITE);
         }
-        renderer_.sort();
-        renderer_.execute();
-
-        std::string diagnostics;
-        const double percent_of_entities = entities_.live_count() == 0
-            ? 0.0
-            : 100.0 * static_cast<double>(visible_entities) / static_cast<double>(entities_.live_count());
-
-        // A naive collision loop would test every entity for every movement
-        // attempt. Compare that full-scan count with the local broad-phase
-        // candidates; this is candidate reduction, not a measured FPS gain.
-        const double naive_collision_work = static_cast<double>(collision_diagnostics_.movement_attempts)
-            * static_cast<double>(entities_.live_count());
-        const double broad_phase_reduction = naive_collision_work == 0.0
-            ? 0.0
-            : 100.0 * (1.0 - static_cast<double>(collision_diagnostics_.unique_candidates) / naive_collision_work);
-
-        DrawFPS(GetScreenWidth() - 100, 2);
-
-        const double percent_of_world = map_.tile_count() == 0 ? 0.0 : 100.0 * static_cast<double>(tiles_rendered) / static_cast<double>(map_.tile_count());
-        diagnostics = std::format(
-            "tiles rendered: {} ({:.1f}% of world)", tiles_rendered, percent_of_world);
-        DrawText(diagnostics.c_str(), 10, 10, 20, RAYWHITE);
-
-        diagnostics = std::format(
-            "entities: {} visible ({:.1f}% of {}) | {} visibility tests | {} commands",
-            visible_entities,
-            percent_of_entities,
-            entities_.live_count(),
-            exact_visibility_tests,
-            renderer_.command_count());
-        DrawText(diagnostics.c_str(), 10, 34, 20, RAYWHITE);
-
-        diagnostics = std::format(
-            "enemies updated: {} | active bombs: {} | blast effects: {}",
-            collision_diagnostics_.enemy_updates,
-            active_bomb_handles_.size(),
-            blast_effects_.size());
-        DrawText(diagnostics.c_str(), 10, 58, 20, RAYWHITE);
-
-        diagnostics = std::format(
-            "broad phase: {} candidates | {:.1f}% fewer than full scan",
-            collision_diagnostics_.unique_candidates, broad_phase_reduction);
-        DrawText(diagnostics.c_str(), 10, 82, 20, RAYWHITE);
-
-        diagnostics = std::format(
-            "narrow phase: {} exact tests | {} contacts",
-            collision_diagnostics_.exact_tests,
-            collision_diagnostics_.contacts);
-        DrawText(diagnostics.c_str(), 10, 106, 20, RAYWHITE);
-
-        diagnostics = std::format("seed: {}", seed_);
-        DrawText(diagnostics.c_str(), 10, window_.height() - 78, 20, RAYWHITE);
-
-        diagnostics = std::format(
-            "world: {} x {} tiles | {} total", map_.width(), map_.height(), map_.tile_count());
-        DrawText(diagnostics.c_str(), 10, window_.height() - 54, 20, RAYWHITE);
-
-        DrawText("move: WASD/arrows | bomb: Space | quit: Q/Escape", 10, window_.height() - 30, 20, LIGHTGRAY);
-
-        diagnostics = std::format("player health: {}", player_health_);
-        DrawText(diagnostics.c_str(), 10, window_.height() - 100, 20, RAYWHITE);
+        if (current_game_state_ == lose) {
+            DrawText("YOU HAVE LOST", int(window_.width() * 0.5f) - 13 * 13, int(window_.height() * 0.5f), 40, RAYWHITE);
+        }
+        
     }
 
     void Application::create_player() {
