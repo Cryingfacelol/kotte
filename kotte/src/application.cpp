@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <vector>
 #include <format>
 #include <raymath.h>
 #include <string>
@@ -25,8 +26,7 @@ namespace kotte
             static_cast<float>(map_.height() * tile_size_)}, spatial_cell_size_}
         , seed_{seed}
         , current_game_state_{GameState::playing} {
-        populate_entities();
-        initialize_enemies();
+        create_new_game();
     }
 
     void Application::run(){
@@ -51,7 +51,7 @@ namespace kotte
        
         begin_frame();
         collect_frame_actions();
-        if (current_game_state_ == playing) {
+        if (current_game_state_ == GameState::playing) {
             update_gameplay(delta_time);
             update_timed_gameplay(delta_time);
             resolve_gameplay_facts();
@@ -71,7 +71,7 @@ namespace kotte
     }
 
     void Application::collect_frame_actions() noexcept{
-        if (current_game_state_ == playing) {
+        if (current_game_state_ == GameState::playing) {
             if(IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_Q)){
                 request_exit();
             }
@@ -97,10 +97,14 @@ namespace kotte
             }   
         }
         if (current_game_state_ == win) {
-            //TODO:add restart
+            if (IsKeyDown(KEY_R)) {
+                restart_game();
+            }
         }
         if (current_game_state_ == lose) {
-            //TODO:add restart
+            if (IsKeyDown(KEY_R)) {
+                restart_game();
+            }
         }
         
     }
@@ -144,7 +148,6 @@ namespace kotte
         });
         }
     }
-
     void Application::resolve_gameplay_facts(){
         for(const BombDetonated& fact : bomb_detonated_facts_){
             BlastEffect effect;
@@ -430,7 +433,7 @@ namespace kotte
 
     void Application::render(){
         Frame frame{background_color_};
-        if (current_game_state_ == playing) {
+        if (current_game_state_ == GameState::playing) {
             const Rectangle world_view = camera_.world_view();
             const TileRange visible_tiles = map_.tiles_overlapping(world_view, tile_size_);
             std::size_t tiles_rendered = 0;
@@ -590,6 +593,38 @@ namespace kotte
             DrawText("YOU HAVE LOST", int(window_.width() * 0.5f) - 13 * 13, int(window_.height() * 0.5f), 40, RAYWHITE);
         }
         
+    }
+
+    void Application::restart_game() {
+        delete_prev_game();
+        current_game_state_ = GameState::playing;
+        create_new_game();
+        
+    }
+
+    void Application::delete_prev_game() {
+        spatial_grid_.clear();
+        entities_.clear();
+        clear_handles();
+        clear_ongoing_effects();
+    }
+
+    void Application::clear_handles() {
+        enemy_handles_.clear();
+        active_bomb_handles_.clear();
+    }
+
+    void Application::clear_ongoing_effects() {
+        place_bomb_requests_.clear();
+        bomb_detonated_facts_.clear();
+        destroy_entity_requests_.clear();
+        blast_effects_.clear();
+    }
+
+    void Application::create_new_game() {
+        random_ = Random(seed_);
+        populate_entities();
+        initialize_enemies();
     }
 
     void Application::create_player() {

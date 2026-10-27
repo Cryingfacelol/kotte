@@ -5,6 +5,7 @@
 #include <cmath>
 #include <stdexcept>
 
+
 namespace kotte
 {
     SpatialGrid::SpatialGrid(Vector2 world_size, float cell_size)
@@ -61,7 +62,13 @@ namespace kotte
         remove(entity_handle, old_world_bounds);
         insert(entity_handle, new_world_bounds);
     }
-
+    void SpatialGrid::clear()
+    {
+        for (Cell& cell : cells_)
+        {
+            cell.clear();
+        }
+    }
     SpatialQuery SpatialGrid::query(Rectangle world_bounds) const{
         SpatialQuery result;
         const CellRange range = cells_overlapping(world_bounds);

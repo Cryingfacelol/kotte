@@ -3,6 +3,8 @@
 #include <cassert>
 #include <stdexcept>
 #include <utility>
+#include <algorithm>
+
 
 namespace kotte
 {
@@ -14,7 +16,15 @@ namespace kotte
         slots_.reserve(capacity);
         free_slots_.reserve(capacity);
     }
-
+    void EntityStore::clear() {
+        slots_.clear();
+        free_slots_.clear();
+        live_count_ = 0;
+        std::for_each(slots_.begin(), slots_.end(), [](Slot& slot) { slot.entity.reset(); });
+        // Reserve the free-list entry before invalidating authoritative state.
+        // If allocation fails, the entity and its handle remain unchanged.
+        
+    }
     EntityHandle EntityStore::create(Entity entity){
         if(!free_slots_.empty()){
             const std::uint32_t slot_index = free_slots_.back();
