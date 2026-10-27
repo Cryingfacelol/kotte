@@ -88,6 +88,7 @@ namespace kotte
         void resolve_gameplay_facts();
         void apply_structural_mutations();
         void update_presentation(float delta_time);
+        void update_gamestate();
         void update_player(float delta_time);
         void try_move_player(Vector2 axis_displacement);
         void update_enemies(float delta_time);
@@ -162,7 +163,8 @@ namespace kotte
         float time_until_player_can_be_hurt_;
         static constexpr float damage_cooldown_ = 0.5f;
         GameState current_game_state_;
-
+        int enemies_killed_ = 0;
+        int number_of_enemies_to_kill_to_win = 1;
 
         Window window_; // Constructed first, destroyed last.
         Camera camera_;

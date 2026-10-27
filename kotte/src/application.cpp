@@ -57,6 +57,7 @@ namespace kotte
             resolve_gameplay_facts();
             apply_structural_mutations();//destroys/creates entities
             update_presentation(delta_time);
+            update_gamestate();
         }
         render();
     }
@@ -96,12 +97,12 @@ namespace kotte
                 movement_direction = Vector2Normalize(movement_direction);
             }   
         }
-        if (current_game_state_ == win) {
+        if (current_game_state_ == GameState::win) {
             if (IsKeyDown(KEY_R)) {
                 restart_game();
             }
         }
-        if (current_game_state_ == lose) {
+        if (current_game_state_ == GameState::lose) {
             if (IsKeyDown(KEY_R)) {
                 restart_game();
             }
@@ -180,7 +181,6 @@ namespace kotte
             if(player_health_ <= 0)
             {
                 player_is_alive_ = false;
-                current_game_state_ = lose;
             }
         }
         
@@ -202,6 +202,17 @@ namespace kotte
         });
 
         if (player_is_alive_) { update_camera(delta_time); }
+       
+        
+    }
+
+    void Application::update_gamestate() {
+        if (enemies_killed_ >= number_of_enemies_to_kill_to_win) {
+            current_game_state_ = GameState::win;
+        }
+        if (!player_is_alive_ && current_game_state_ != GameState::win) {
+            current_game_state_ = GameState::lose;
+        }
     }
 
     void Application::update_player(float delta_time){
@@ -333,12 +344,16 @@ namespace kotte
             destroy_entity_requests_, {}, &DestroyEntityRequest::entity);
         destroy_entity_requests_.erase(duplicate_tail.begin(), duplicate_tail.end());
 
+        
+
         for(const DestroyEntityRequest& request : destroy_entity_requests_){
             const Entity* doomed = entities_.try_get(request.entity);
             if(doomed == nullptr){
                 continue;
             }
-
+            if (doomed->kind == EntityKind::enemy) {
+                enemies_killed_++;
+            }
             // Spatial membership is derived from the live entity, so remove it
             // while the handle can still resolve to the bounds used at insertion.
             spatial_grid_.remove(request.entity, entity_world_bounds(*doomed));
@@ -433,6 +448,7 @@ namespace kotte
 
     void Application::render(){
         Frame frame{background_color_};
+       
         if (current_game_state_ == GameState::playing) {
             const Rectangle world_view = camera_.world_view();
             const TileRange visible_tiles = map_.tiles_overlapping(world_view, tile_size_);
@@ -526,11 +542,11 @@ namespace kotte
             renderer_.sort();
             renderer_.execute();
 
-            std::string diagnostics;
+            
             const double percent_of_entities = entities_.live_count() == 0
                 ? 0.0
                 : 100.0 * static_cast<double>(visible_entities) / static_cast<double>(entities_.live_count());
-
+             std::string diagnostics;
             // A naive collision loop would test every entity for every movement
             // attempt. Compare that full-scan count with the local broad-phase
             // candidates; this is candidate reduction, not a measured FPS gain.
@@ -574,6 +590,7 @@ namespace kotte
                 collision_diagnostics_.contacts);
             DrawText(diagnostics.c_str(), 10, 106, 20, RAYWHITE);
 
+            
             diagnostics = std::format("seed: {}", seed_);
             DrawText(diagnostics.c_str(), 10, window_.height() - 78, 20, RAYWHITE);
 
@@ -585,12 +602,21 @@ namespace kotte
 
             diagnostics = std::format("player health: {}", player_health_);
             DrawText(diagnostics.c_str(), 10, window_.height() - 100, 20, RAYWHITE);
+
+            DrawText("current game state: playing", 10, 130, 20, RAYWHITE);
+
+            diagnostics = std::format("enemies killed: {}", enemies_killed_);
+            DrawText(diagnostics.c_str(), 10, 154, 20, RAYWHITE);
         }
-        if (current_game_state_ == win) {
+        if (current_game_state_ == GameState::win) {
             DrawText("YOU HAVE WON", int(window_.width() * 0.5f) - 13 * 12, int(window_.height() * 0.5f), 40, RAYWHITE);
+            DrawText("press R to restart", int(window_.width() * 0.5f) - 13 * 15, int(window_.height() * 0.5f) + 50, 40, RAYWHITE);
+            DrawText("current game state: win", 10, 130, 20, RAYWHITE);
         }
-        if (current_game_state_ == lose) {
+        if (current_game_state_ == GameState::lose) {
             DrawText("YOU HAVE LOST", int(window_.width() * 0.5f) - 13 * 13, int(window_.height() * 0.5f), 40, RAYWHITE);
+            DrawText("press R to restart", int(window_.width() * 0.5f) - 13 * 15, int(window_.height() * 0.5f) + 50, 40, RAYWHITE);
+            DrawText("current game state: lose", 10, 130, 20, RAYWHITE);
         }
         
     }
@@ -607,6 +633,7 @@ namespace kotte
         entities_.clear();
         clear_handles();
         clear_ongoing_effects();
+        enemies_killed_ = 0;
     }
 
     void Application::clear_handles() {
