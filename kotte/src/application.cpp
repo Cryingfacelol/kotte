@@ -254,7 +254,7 @@ namespace kotte
         // Detect possible contacts using the mover's proposed collision bounds.
         for (EntityHandle bomb_handle : active_bomb_handles_)
         {
-            player_bomb_on_same_space_solution(bomb_handle, player_handle_);
+            player_bomb_on_same_space_solution(bomb_handle);
         }
         if(entity_movement_is_blocked(player_handle_, proposed_position)){ 
             // Respond by rejecting only this blocked player axis.
@@ -833,10 +833,10 @@ namespace kotte
             }
 
             const Entity* candidate = entities_.try_get(candidate_handle);
-            if (candidate->kind == EntityKind::bomb) {
+            if (candidate->kind == EntityKind::bomb &&proposed_entity.kind == EntityKind::player ) {
                //if owner then let walk through
                 //if has exited then 
-                if (proposed_entity.kind == EntityKind::player && player_ignores_bomb) {
+                if (moving_entity_handle == candidate->bomb_state.value().owner && player_ignores_bomb) {
                     continue;
                 }
             }
@@ -853,13 +853,20 @@ namespace kotte
         }
         return blocked;
     }
-    void Application::player_bomb_on_same_space_solution(EntityHandle bomb_handle, EntityHandle player_handle) {
-        if (player_ignores_bomb) {
-            if (!CheckCollisionRecs(entity_world_bounds(entity(bomb_handle)), entity_world_bounds(entity(player_handle))))
-            {
-                player_ignores_bomb = false;
+
+    void Application::player_bomb_on_same_space_solution(EntityHandle bomb_handle) {
+        Entity bomb = entity(bomb_handle);
+        if (bomb.kind == EntityKind::bomb) {
+            BombState bomb_state = bomb.bomb_state.value();
+            Entity player = entity(bomb_state.owner);
+            if (player_ignores_bomb) {
+                if (!CheckCollisionRecs(entity_world_bounds(bomb), entity_world_bounds(player)))
+                {
+                    player_ignores_bomb = false;
+                }
             }
         }
+        
     }
 
     bool Application::is_solid(EntityKind kind) noexcept{

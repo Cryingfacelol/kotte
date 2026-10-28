@@ -118,7 +118,7 @@ namespace kotte
         void clear_handles();
         void clear_ongoing_effects();
         void player_loses_health();
-        void player_bomb_on_same_space_solution(EntityHandle bomb_handle, EntityHandle player_handle);
+        void player_bomb_on_same_space_solution(EntityHandle bomb_handle);
         bool player_is_colliding_with_enemy();
         [[nodiscard]] Entity& entity(EntityHandle handle) noexcept;
         [[nodiscard]] const Entity& entity(EntityHandle handle) const noexcept;
