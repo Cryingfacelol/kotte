@@ -29,10 +29,19 @@ namespace kotte
         bool detonation_requested = false;
     };
 
+    struct PlayerState final {
+        int health;
+        float time_until_player_can_be_hurt;
+        bool is_alive = true;
+        bool is_invincible = false;
+        bool ignores_bomb = false;
+    };
+
     struct Entity final {
         EntityKind kind = EntityKind::crate;
         Vector2 world_position{};
         CardinalDirection movement_heading = CardinalDirection::right;
         std::optional<BombState> bomb_state;
+        std::optional<PlayerState> player_state;
     };
 }

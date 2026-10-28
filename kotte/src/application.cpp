@@ -122,7 +122,9 @@ namespace kotte
 
     void Application::update_timed_gameplay(float delta_time){
         // This list is independent of camera queries, so off-screen fuses advance.
-        if (time_until_player_can_be_hurt_ >0) { time_until_player_can_be_hurt_ -= delta_time; }
+        if (entity(player_handle_).player_state.value().time_until_player_can_be_hurt >0) {
+            entity(player_handle_).player_state.value().time_until_player_can_be_hurt -= delta_time; 
+        }
         for(const EntityHandle bomb_handle : active_bomb_handles_){
         Entity* bomb = entities_.try_get(bomb_handle);
         if(bomb == nullptr || !bomb->bomb_state.has_value()
@@ -172,16 +174,21 @@ namespace kotte
             blast_effects_.push_back(std::move(effect));
         }
         if (player_is_alive_) {
-            if (player_is_invincible_ && time_until_player_can_be_hurt_ <= 0) { player_is_invincible_ = false; }
-            if (player_is_colliding_with_enemy() && !player_is_invincible_) 
+            if (entity(player_handle_).player_state.value().is_invincible 
+                && entity(player_handle_).player_state.value().time_until_player_can_be_hurt <= 0) 
             { 
-                player_is_invincible_ = true; 
-                time_until_player_can_be_hurt_ = damage_cooldown_; 
+                entity(player_handle_).player_state.value().is_invincible = false;
             }
-            if(player_health_ <= 0)
+            if (player_is_colliding_with_enemy() && !entity(player_handle_).player_state.value().is_invincible)
+            { 
+                entity(player_handle_).player_state.value().is_invincible = true;
+                entity(player_handle_).player_state.value().time_until_player_can_be_hurt = damage_cooldown_;
+            }
+            if(entity(player_handle_).player_state.value().health <= 0)
             {
-                player_is_alive_ = false;
+                entity(player_handle_).player_state.value().is_alive = false;
             }
+            player_is_alive_ = entity(player_handle_).player_state.value().is_alive;
         }
         
         bomb_detonated_facts_.clear();
@@ -314,11 +321,14 @@ namespace kotte
     void Application::apply_bomb_placements(){
         for(const PlaceBombRequest& request : place_bomb_requests_){
             const Entity* owner = entities_.try_get(request.owner);
-            if(owner == nullptr || owner->kind != EntityKind::player
-                || owner_has_active_bomb(request.owner)){
+            if(owner == nullptr 
+                || owner->kind != EntityKind::player
+                || owner_has_active_bomb(request.owner))
+            {
+
                 continue;
             }
-            player_ignores_bomb = true;
+            if (entity(request.owner).player_state.has_value()) { entity(request.owner).player_state.value().ignores_bomb = true; }
             const Entity bomb{
                 .kind = EntityKind::bomb,
                 .world_position = request.world_position,
@@ -415,7 +425,11 @@ namespace kotte
                 blocked_by_crate = true;
                 break;
             case EntityKind::player:
-                if (player_is_invincible_ == false && player_health_ > 0) { player_loses_health(); }
+                if (entity(player_handle_).player_state.value().is_invincible == false 
+                    && entity(player_handle_).player_state.value().health > 0) 
+                {
+                    player_loses_health(); 
+                }
                 break;
             }
         }
@@ -443,7 +457,7 @@ namespace kotte
         }
     }
     void Application::player_loses_health() {
-        player_health_--;
+        entity(player_handle_).player_state.value().health--;
     }
     void Application::update_camera(float delta_time) noexcept{
         (void) delta_time; // name the argument to avoid the static analyzer yelling at us. :) We'll animate the camera later.
@@ -605,7 +619,7 @@ namespace kotte
 
             DrawText("move: WASD/arrows | bomb: Space | quit: Q/Escape", 10, window_.height() - 30, 20, LIGHTGRAY);
 
-            diagnostics = std::format("player health: {}", player_health_);
+            diagnostics = std::format("player health: {}", entity(player_handle_).player_state.value().health);
             DrawText(diagnostics.c_str(), 10, window_.height() - 100, 20, RAYWHITE);
 
             DrawText("current game state: playing", 10, 130, 20, RAYWHITE);
@@ -660,10 +674,19 @@ namespace kotte
     }
 
     void Application::create_player() {
-        const Entity player_entity{ EntityKind::player, {tile_size_ * 2.5f, tile_size_ * 2.5f} };
+        const Entity player_entity{
+            .kind = EntityKind::player,
+            .world_position = {tile_size_ * 2.5f, tile_size_ * 2.5f},
+            .player_state = PlayerState{
+                .health = player_max_health_,
+                .time_until_player_can_be_hurt = 0,
+                .is_alive = true,
+                .is_invincible = false,
+                .ignores_bomb = false,
+            } 
+        };
         player_handle_ = entities_.create(player_entity);
         spatial_grid_.insert(player_handle_, entity_world_bounds(player_entity));
-        player_health_ = player_max_health_;
         player_is_alive_ = true;
         //player_is_invincible_ = false;
     }
@@ -786,7 +809,7 @@ namespace kotte
             }
             if (chosen_entity.kind == EntityKind::enemy) //doesnt kill health if not the right kind
             {
-                if (player_is_invincible_ == false) { player_loses_health(); }
+                if (entity(player_handle_).player_state.value().is_invincible == false) { player_loses_health(); }
                 if (collided == false) { collided = true; }
             }
         }
@@ -833,13 +856,15 @@ namespace kotte
             }
 
             const Entity* candidate = entities_.try_get(candidate_handle);
-            if (candidate->kind == EntityKind::bomb &&proposed_entity.kind == EntityKind::player ) {
-               //if owner then let walk through
-                //if has exited then 
-                if (moving_entity_handle == candidate->bomb_state.value().owner && player_ignores_bomb) {
+            if (candidate->kind == EntityKind::bomb && proposed_entity.kind == EntityKind::player ) {
+                Entity& owner = entity(candidate->bomb_state.value().owner);
+
+                if (moving_entity_handle == candidate->bomb_state.value().owner && owner.player_state.value().ignores_bomb) 
+                {
                     continue;
                 }
             }
+
             if(candidate == nullptr || !is_solid(candidate->kind)){
                 continue;
             }
@@ -855,14 +880,14 @@ namespace kotte
     }
 
     void Application::player_bomb_on_same_space_solution(EntityHandle bomb_handle) {
-        Entity bomb = entity(bomb_handle);
+        Entity& bomb = entity(bomb_handle);
         if (bomb.kind == EntityKind::bomb) {
             BombState bomb_state = bomb.bomb_state.value();
             Entity player = entity(bomb_state.owner);
-            if (player_ignores_bomb) {
+            if (player.player_state.value().ignores_bomb) {
                 if (!CheckCollisionRecs(entity_world_bounds(bomb), entity_world_bounds(player)))
                 {
-                    player_ignores_bomb = false;
+                    player.player_state.value().ignores_bomb = false;
                 }
             }
         }
