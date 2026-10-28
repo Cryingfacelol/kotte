@@ -321,6 +321,11 @@ namespace kotte
     }
 
     void Application::apply_bomb_placements(){
+        uint8_t blast_range = bomb_blast_range_;
+        if (power_up_picked_up_) {
+            blast_range = bomb_blast_range_powered_up; 
+        }
+
         for(const PlaceBombRequest& request : place_bomb_requests_){
             const Entity* owner = entities_.try_get(request.owner);
             if(owner == nullptr 
@@ -338,7 +343,7 @@ namespace kotte
                 .bomb_state = BombState{
                     .owner = request.owner,
                     .fuse_remaining = bomb_fuse_seconds_,
-                    .blast_range = bomb_blast_range_
+                    .blast_range = blast_range
                 }
             };
             const EntityHandle bomb_handle = entities_.create(bomb);
