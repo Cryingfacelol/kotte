@@ -114,6 +114,7 @@ namespace kotte
         void populate_entities();
         void initialize_enemies();
         void create_player();
+        void create_power_up(int x, int y);
         void destroy_player();
         void clear_handles();
         void clear_ongoing_effects();
@@ -155,16 +156,17 @@ namespace kotte
         static constexpr Color bomb_color_{0x20, 0x24, 0x2a, 0xff};
         static constexpr Color blast_color_{0xf2, 0x8f, 0x3b, 0xe8};
         static constexpr Color crate_color_{0xb0, 0x72, 0x3c, 0xff};
-        static constexpr Color enemy_color_{0xd9, 0x4f, 0x70, 0xff};
+        static constexpr Color enemy_color_{ 0xd9, 0x4f, 0x70, 0xff };
+        static constexpr Color power_up_color_{ 0x20, 0x72, 0x70, 0xff};
         static constexpr Color wall_color_{0x78, 0x5f, 0x47, 0xff};
    
-        int player_max_health_ = 1;
+        int player_max_health_ = 10;
         bool player_is_alive_ = true;
         static constexpr float damage_cooldown_ = 0.5f;
 
         GameState current_game_state_;
         int enemies_killed_ = 0;
-        int number_of_enemies_to_kill_to_win = 1;
+        int number_of_enemies_to_kill_to_win = 5;
 
         Window window_; // Constructed first, destroyed last.
         Camera camera_;
@@ -183,6 +185,7 @@ namespace kotte
         CollisionDiagnostics collision_diagnostics_;
         std::uint64_t seed_;
         EntityHandle player_handle_;
+        EntityHandle power_up_handle_;
         bool exit_requested_ = false;
     };
 }

@@ -9,6 +9,7 @@
 #include <string>
 #include <utility>
 
+
 namespace kotte
 {    
     Application::Application(
@@ -324,7 +325,8 @@ namespace kotte
             if(owner == nullptr 
                 || owner->kind != EntityKind::player
                 || owner_has_active_bomb(request.owner)
-                || owner->player_state.value().ignores_bomb)
+                || owner->player_state.value().ignores_bomb
+                )
             {
                 continue;
             }
@@ -547,9 +549,10 @@ namespace kotte
                 const Vector2 screen_position = camera_.world_to_screen({bounds.x, bounds.y});
                 bounds.x = screen_position.x;
                 bounds.y = screen_position.y;
-                const RenderLayer layer = visible_candidate->kind == EntityKind::bomb
-                    ? RenderLayer::ground
-                    : RenderLayer::world;
+                RenderLayer layer = RenderLayer::world;
+                if (visible_candidate->kind == EntityKind::bomb || visible_candidate->kind == EntityKind::power_up) {
+                    layer = RenderLayer::ground;
+                }
                 renderer_.submit({
                     bounds,
                     entity_color(visible_candidate->kind),
@@ -688,7 +691,6 @@ namespace kotte
         player_handle_ = entities_.create(player_entity);
         spatial_grid_.insert(player_handle_, entity_world_bounds(player_entity));
         player_is_alive_ = true;
-        //player_is_invincible_ = false;
     }
 
     void Application::destroy_player() {
@@ -701,19 +703,36 @@ namespace kotte
         assert(destroyed);
         (void)destroyed;
     }
+    void Application::create_power_up(int x, int y) {
+        
+        const Vector2 world_position{
+            static_cast<float>(x * tile_size_ + tile_size_ / 2),
+            static_cast<float>(y * tile_size_ + tile_size_ / 2)
+        };
+        const Entity power_up{ EntityKind::power_up, world_position };
+        power_up_handle_ = entities_.create(power_up);
+        spatial_grid_.insert(power_up_handle_, entity_world_bounds(power_up));
+    }
     void Application::populate_entities(){
         // Match the generation density so initial creation does not repeatedly
         // relocate slot storage. Handles remain valid even if this estimate grows.
         entities_.reserve(map_.tile_count() / 4);
 
         create_player();
-
+        bool power_up_created = false;
+        int power_up_spawn_x = random_.between(1, 41);
+        
         for(int y = 1; y < map_.height() - 1; ++y){
             for(int x = 1; x < map_.width() - 1; ++x){
                 if((x == 2 && y == 2) || map_.at(x, y).type != TileType::floor || !random_.coin_flip(0.25f)){
                     continue;
                 }
-
+                if (!power_up_created && x == power_up_spawn_x )
+                {
+                    create_power_up(x,y);
+                    power_up_created = true;
+                    continue;
+                }
                 const std::uint8_t kind_roll = random_.next<20, std::uint8_t>();
                 // Week 3's inert bomb markers are no longer needed: every bomb
                 // now enters the world through the explicit lifetime path.
@@ -772,7 +791,8 @@ namespace kotte
         case EntityKind::player: size = {24.0f, 32.0f}; break;
         case EntityKind::bomb: size = {22.0f, 22.0f}; break;
         case EntityKind::crate: size = {36.0f, 48.0f}; break;
-        case EntityKind::enemy: size = {28.0f, 30.0f}; break;
+        case EntityKind::enemy: size = { 28.0f, 30.0f }; break;
+        case EntityKind::power_up: size = {25.0f, 25.0f}; break;
         }
 
         const Vector2 top_left = entity.world_position - Vector2{size.x / 2.0f, size.y};
@@ -788,7 +808,8 @@ namespace kotte
         case EntityKind::player: size = {20.0f, 16.0f}; break;
         case EntityKind::bomb: size = {18.0f, 12.0f}; break;
         case EntityKind::crate: size = {32.0f, 32.0f}; break;
-        case EntityKind::enemy: size = {24.0f, 14.0f}; break;
+        case EntityKind::enemy: size = { 24.0f, 14.0f }; break;
+        case EntityKind::power_up: size = {24.0f, 24.0f}; break;
         }
 
         const Vector2 top_left = entity.world_position - Vector2{size.x / 2.0f, size.y};
@@ -883,7 +904,7 @@ namespace kotte
         Entity& bomb = entity(bomb_handle);
         if (bomb.kind == EntityKind::bomb) {
             BombState bomb_state = bomb.bomb_state.value();
-            Entity player = entity(bomb_state.owner);
+            Entity& player = entity(bomb_state.owner);
             if (player.player_state.value().ignores_bomb) {
                 if (!CheckCollisionRecs(entity_world_bounds(bomb), entity_world_bounds(player)))
                 {
@@ -902,6 +923,7 @@ namespace kotte
             return true;
         case EntityKind::bomb:
             return true;
+        case EntityKind::power_up:
         }
 
         return false;
@@ -957,10 +979,11 @@ namespace kotte
 
     Color Application::entity_color(EntityKind kind) noexcept{
         switch(kind){
-        case EntityKind::player: return player_color_;
-        case EntityKind::bomb: return bomb_color_;
-        case EntityKind::crate: return crate_color_;
-        case EntityKind::enemy: return enemy_color_;
+            case EntityKind::player: return player_color_;
+            case EntityKind::bomb: return bomb_color_;
+            case EntityKind::crate: return crate_color_;
+            case EntityKind::enemy: return enemy_color_;
+            case EntityKind::power_up: return power_up_color_;
         }
         return MAGENTA;
     }
