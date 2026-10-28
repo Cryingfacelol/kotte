@@ -323,12 +323,12 @@ namespace kotte
             const Entity* owner = entities_.try_get(request.owner);
             if(owner == nullptr 
                 || owner->kind != EntityKind::player
-                || owner_has_active_bomb(request.owner))
+                || owner_has_active_bomb(request.owner)
+                || owner->player_state.value().ignores_bomb)
             {
-
                 continue;
             }
-            if (entity(request.owner).player_state.has_value()) { entity(request.owner).player_state.value().ignores_bomb = true; }
+            entity(request.owner).player_state.value().ignores_bomb = true; 
             const Entity bomb{
                 .kind = EntityKind::bomb,
                 .world_position = request.world_position,
