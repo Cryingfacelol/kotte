@@ -127,29 +127,29 @@ namespace kotte
             entity(player_handle_).player_state.value().time_until_player_can_be_hurt -= delta_time; 
         }
         for(const EntityHandle bomb_handle : active_bomb_handles_){
-        Entity* bomb = entities_.try_get(bomb_handle);
-        if(bomb == nullptr || !bomb->bomb_state.has_value()
-            || bomb->bomb_state->detonation_requested){
-            continue;
-        }
+            Entity* bomb = entities_.try_get(bomb_handle);
+            if(bomb == nullptr || !bomb->bomb_state.has_value()
+                || bomb->bomb_state->detonation_requested){
+                continue;
+            }
 
-        BombState& state = *bomb->bomb_state;
-        state.fuse_remaining -= delta_time;
-        if(state.fuse_remaining > 0.0f){
-            continue;
-        }
+            BombState& state = *bomb->bomb_state;
+            state.fuse_remaining -= delta_time;
+            if(state.fuse_remaining > 0.0f){
+                continue;
+            }
 
-        state.fuse_remaining = 0.0f;
-        state.detonation_requested = true;
+            state.fuse_remaining = 0.0f;
+            state.detonation_requested = true;
 
-        // The fact owns every value needed by later phases; it does not
-        // borrow the bomb that will eventually request its own destruction.
-        bomb_detonated_facts_.push_back({
-            bomb_handle,
-            state.owner,
-            bomb->world_position,
-            state.blast_range
-        });
+            // The fact owns every value needed by later phases; it does not
+            // borrow the bomb that will eventually request its own destruction.
+            bomb_detonated_facts_.push_back({
+                bomb_handle,
+                state.owner,
+                bomb->world_position,
+                state.blast_range
+            });
         }
     }
     void Application::resolve_gameplay_facts(){
@@ -173,6 +173,7 @@ namespace kotte
             append_blast_ray(effect, origin_column, origin_row, -1, 0, fact.blast_range);
 
             blast_effects_.push_back(std::move(effect));
+            entity(entity(fact.bomb).bomb_state.value().owner).player_state.value().ignores_bomb = false;
         }
         if (player_is_alive_) {
             if (entity(player_handle_).player_state.value().is_invincible 
@@ -379,7 +380,7 @@ namespace kotte
             (void) destroyed;
         }
         if (!player_is_alive_) { destroy_player();}
-
+        if (power_up_picked_up_) { destroy_power_up(); }
         // These update lists are non-owning views. A single cleanup pass keeps
         // their iteration dense without teaching each destruction source about
         // every list that happens to reference an entity.
@@ -655,7 +656,6 @@ namespace kotte
         entities_.clear();
         clear_handles();
         clear_ongoing_effects();
-        enemies_killed_ = 0;
     }
 
     void Application::clear_handles() {
@@ -668,6 +668,7 @@ namespace kotte
         bomb_detonated_facts_.clear();
         destroy_entity_requests_.clear();
         blast_effects_.clear();
+        enemies_killed_ = 0;
     }
 
     void Application::create_new_game() {
@@ -703,8 +704,8 @@ namespace kotte
         assert(destroyed);
         (void)destroyed;
     }
+
     void Application::create_power_up(int x, int y) {
-        
         const Vector2 world_position{
             static_cast<float>(x * tile_size_ + tile_size_ / 2),
             static_cast<float>(y * tile_size_ + tile_size_ / 2)
@@ -712,7 +713,20 @@ namespace kotte
         const Entity power_up{ EntityKind::power_up, world_position };
         power_up_handle_ = entities_.create(power_up);
         spatial_grid_.insert(power_up_handle_, entity_world_bounds(power_up));
+        power_up_picked_up_ = false;
     }
+
+    void Application::destroy_power_up() {
+        const Entity* doomed = entities_.try_get(power_up_handle_);
+        if (doomed == nullptr) {
+            return;
+        }
+        spatial_grid_.remove(power_up_handle_, entity_world_bounds(*doomed));
+        const bool destroyed = entities_.destroy(power_up_handle_);
+        assert(destroyed);
+        (void)destroyed;
+    }
+
     void Application::populate_entities(){
         // Match the generation density so initial creation does not repeatedly
         // relocate slot storage. Handles remain valid even if this estimate grows.
@@ -877,22 +891,32 @@ namespace kotte
             }
 
             const Entity* candidate = entities_.try_get(candidate_handle);
-            if (candidate->kind == EntityKind::bomb && proposed_entity.kind == EntityKind::player ) {
-                Entity& owner = entity(candidate->bomb_state.value().owner);
 
-                if (moving_entity_handle == candidate->bomb_state.value().owner && owner.player_state.value().ignores_bomb) 
-                {
-                    continue;
-                }
-            }
-
-            if(candidate == nullptr || !is_solid(candidate->kind)){
+            if(candidate == nullptr){
                 continue;
             }
+            if (!is_solid(candidate->kind) && candidate->kind != EntityKind::power_up) {
+                continue;
+            }
+            
 
             // Narrow phase: exact-test the remaining solid candidate.
             ++collision_diagnostics_.exact_tests;
             if(CheckCollisionRecs(proposed_collision_bounds, entity_collision_bounds(*candidate))){
+
+                if (candidate->kind == EntityKind::power_up && proposed_entity.kind == EntityKind::player) {
+                    power_up_picked_up_ = true;
+                }
+
+                if (candidate->kind == EntityKind::bomb && proposed_entity.kind == EntityKind::player ) {
+                    Entity& owner = entity(candidate->bomb_state.value().owner);
+
+                    if (moving_entity_handle == candidate->bomb_state.value().owner && owner.player_state.value().ignores_bomb) 
+                    {
+                        continue;
+                    }
+                }
+                
                 ++collision_diagnostics_.contacts;
                 blocked = true;
             }

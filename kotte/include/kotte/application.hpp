@@ -114,8 +114,9 @@ namespace kotte
         void populate_entities();
         void initialize_enemies();
         void create_player();
-        void create_power_up(int x, int y);
         void destroy_player();
+        void create_power_up(int x, int y);
+        void destroy_power_up();
         void clear_handles();
         void clear_ongoing_effects();
         void player_loses_health();
@@ -161,7 +162,8 @@ namespace kotte
         static constexpr Color wall_color_{0x78, 0x5f, 0x47, 0xff};
    
         int player_max_health_ = 10;
-        bool player_is_alive_ = true;
+        bool player_is_alive_;
+        bool power_up_picked_up_;
         static constexpr float damage_cooldown_ = 0.5f;
 
         GameState current_game_state_;
