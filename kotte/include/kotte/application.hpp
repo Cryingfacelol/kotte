@@ -118,6 +118,7 @@ namespace kotte
         void clear_handles();
         void clear_ongoing_effects();
         void player_loses_health();
+        void player_bomb_on_same_space_solution(EntityHandle bomb_handle, EntityHandle player_handle);
         bool player_is_colliding_with_enemy();
         [[nodiscard]] Entity& entity(EntityHandle handle) noexcept;
         [[nodiscard]] const Entity& entity(EntityHandle handle) const noexcept;
@@ -162,6 +163,7 @@ namespace kotte
         bool player_is_invincible_ = false;
         float time_until_player_can_be_hurt_;
         static constexpr float damage_cooldown_ = 0.5f;
+        bool player_ignores_bomb = false;
         GameState current_game_state_;
         int enemies_killed_ = 0;
         int number_of_enemies_to_kill_to_win = 1;

@@ -52,10 +52,10 @@ namespace kotte
         begin_frame();
         collect_frame_actions();
         if (current_game_state_ == GameState::playing) {
-            update_gameplay(delta_time);
+            update_gameplay(delta_time);//needs bomb request here
             update_timed_gameplay(delta_time);
             resolve_gameplay_facts();
-            apply_structural_mutations();//destroys/creates entities
+            apply_structural_mutations();//destroys/creates entities // bomb requests dissapear here
             update_presentation(delta_time);
             update_gamestate();
         }
@@ -252,7 +252,11 @@ namespace kotte
         const Vector2 proposed_position = player_entity.world_position + axis_displacement;
 
         // Detect possible contacts using the mover's proposed collision bounds.
-        if(entity_movement_is_blocked(player_handle_, proposed_position)){
+        for (EntityHandle bomb_handle : active_bomb_handles_)
+        {
+            player_bomb_on_same_space_solution(bomb_handle, player_handle_);
+        }
+        if(entity_movement_is_blocked(player_handle_, proposed_position)){ 
             // Respond by rejecting only this blocked player axis.
             ++collision_diagnostics_.blocked_moves;
             return;
@@ -314,7 +318,7 @@ namespace kotte
                 || owner_has_active_bomb(request.owner)){
                 continue;
             }
-
+            player_ignores_bomb = true;
             const Entity bomb{
                 .kind = EntityKind::bomb,
                 .world_position = request.world_position,
@@ -330,8 +334,9 @@ namespace kotte
             // views used by spatial queries and timed gameplay.
             spatial_grid_.insert(bomb_handle, entity_world_bounds(bomb));
             active_bomb_handles_.push_back(bomb_handle);
+            
         }
-
+        
         place_bomb_requests_.clear();
     }
 
@@ -828,6 +833,13 @@ namespace kotte
             }
 
             const Entity* candidate = entities_.try_get(candidate_handle);
+            if (candidate->kind == EntityKind::bomb) {
+               //if owner then let walk through
+                //if has exited then 
+                if (proposed_entity.kind == EntityKind::player && player_ignores_bomb) {
+                    continue;
+                }
+            }
             if(candidate == nullptr || !is_solid(candidate->kind)){
                 continue;
             }
@@ -839,8 +851,15 @@ namespace kotte
                 blocked = true;
             }
         }
-
         return blocked;
+    }
+    void Application::player_bomb_on_same_space_solution(EntityHandle bomb_handle, EntityHandle player_handle) {
+        if (player_ignores_bomb) {
+            if (!CheckCollisionRecs(entity_world_bounds(entity(bomb_handle)), entity_world_bounds(entity(player_handle))))
+            {
+                player_ignores_bomb = false;
+            }
+        }
     }
 
     bool Application::is_solid(EntityKind kind) noexcept{
@@ -850,7 +869,7 @@ namespace kotte
         case EntityKind::enemy:
             return true;
         case EntityKind::bomb:
-            return false;
+            return true;
         }
 
         return false;
