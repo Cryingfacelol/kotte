@@ -28,6 +28,7 @@ namespace kotte
         float fuse_remaining = 0.0f;
         std::uint8_t blast_range = 0;
         bool detonation_requested = false;
+        bool owner_ignores_bomb = false;
     };
 
     struct PlayerState final {
@@ -35,7 +36,6 @@ namespace kotte
         float time_until_player_can_be_hurt;
         bool is_alive = true;
         bool is_invulnerable = false;
-        bool ignores_bomb = false;
     };
 
     struct Entity final {

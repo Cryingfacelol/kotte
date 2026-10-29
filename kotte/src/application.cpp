@@ -173,7 +173,7 @@ namespace kotte
             append_blast_ray(effect, origin_column, origin_row, -1, 0, fact.blast_range);
 
             blast_effects_.push_back(std::move(effect));
-            entity(entity(fact.bomb).bomb_state.value().owner).player_state.value().ignores_bomb = false;
+            entity(fact.bomb).bomb_state.value().owner_ignores_bomb = false;
         }
         if (player_is_alive_) {
             if (entity(player_handle_).player_state.value().is_invulnerable 
@@ -335,21 +335,27 @@ namespace kotte
             if(owner == nullptr 
                 || owner->kind != EntityKind::player
                 || owner_has_max_active_bombs(request.owner)
-                || owner->player_state.value().ignores_bomb
                 )
             {
                 continue;
             }
-            entity(request.owner).player_state.value().ignores_bomb = true; 
+            for (const EntityHandle& bomb_handle : active_bomb_handles_) {
+                if (entity(bomb_handle).bomb_state.value().owner_ignores_bomb)
+                {
+                    continue;
+                }
+            }
             const Entity bomb{
                 .kind = EntityKind::bomb,
                 .world_position = request.world_position,
                 .bomb_state = BombState{
                     .owner = request.owner,
                     .fuse_remaining = bomb_fuse_seconds_,
-                    .blast_range = blast_range
+                    .blast_range = blast_range,
+                    .owner_ignores_bomb = true
                 }
             };
+
             const EntityHandle bomb_handle = entities_.create(bomb);
 
             // The store owns the bomb; these handles are synchronized, non-owning
@@ -701,7 +707,6 @@ namespace kotte
                 .time_until_player_can_be_hurt = 0,
                 .is_alive = true,
                 .is_invulnerable = false,
-                .ignores_bomb = false,
             } 
         };
         player_handle_ = entities_.create(player_entity);
@@ -921,9 +926,7 @@ namespace kotte
                 }
 
                 if (candidate->kind == EntityKind::bomb && proposed_entity.kind == EntityKind::player ) {
-                    Entity& owner = entity(candidate->bomb_state.value().owner);
-
-                    if (moving_entity_handle == candidate->bomb_state.value().owner && owner.player_state.value().ignores_bomb) 
+                    if (moving_entity_handle == candidate->bomb_state.value().owner && candidate->bomb_state.value().owner_ignores_bomb)
                     {
                         continue;
                     }
@@ -941,10 +944,10 @@ namespace kotte
         if (bomb.kind == EntityKind::bomb) {
             BombState bomb_state = bomb.bomb_state.value();
             Entity& player = entity(bomb_state.owner);
-            if (player.player_state.value().ignores_bomb) {
+            if (bomb.bomb_state.value().owner_ignores_bomb) {
                 if (!CheckCollisionRecs(entity_world_bounds(bomb), entity_world_bounds(player)))
                 {
-                    player.player_state.value().ignores_bomb = false;
+                    bomb.bomb_state.value().owner_ignores_bomb = false;
                 }
             }
         }
