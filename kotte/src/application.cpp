@@ -191,6 +191,7 @@ namespace kotte
             entity(fact.bomb).bomb_state.value().owner_ignores_bomb = false;
         }
         if (player_is_alive_) {
+            //handles player death, damage from enemies, and damage cooldown
             if (entity(player_handle_).player_state.value().is_invulnerable 
                 && entity(player_handle_).player_state.value().time_until_player_can_be_hurt <= 0.1f) 
             { 
@@ -280,8 +281,8 @@ namespace kotte
         const Vector2 proposed_position = player_entity.world_position + axis_displacement;
 
         // Detect possible contacts using the mover's proposed collision bounds.
-        for (EntityHandle bomb_handle : active_bomb_handles_)
-        {
+        for (EntityHandle bomb_handle : active_bomb_handles_){
+            //allows player to walk out of placed bombs
             player_bomb_on_same_space_solution(bomb_handle);
         }
         if(entity_movement_is_blocked(player_handle_, proposed_position)){ 
@@ -354,6 +355,7 @@ namespace kotte
             {
                 continue;
             }
+            //does not place if the player is standing on a bomb
             for (const EntityHandle& bomb_handle : active_bomb_handles_) {
                 if (entity(bomb_handle).bomb_state.value().owner_ignores_bomb)
                 {
@@ -450,6 +452,7 @@ namespace kotte
             switch(candidate->kind){
             case EntityKind::bomb:
             {
+                //makes bomb detonate next frame, or the mount of delay timer
                 BombState& state = entity(handle).bomb_state.value();
                 state.detonation_requested = true;
                 state.fuse_remaining = bomb_fuse_seconds_;
@@ -464,6 +467,7 @@ namespace kotte
                 blocked_by_crate = true;
                 break;
             case EntityKind::player:
+                //decreases health by 1 and makes invulnerable
                 if (entity(player_handle_).player_state.value().is_invulnerable == false 
                     && entity(player_handle_).player_state.value().health > 0) 
                 {
@@ -695,6 +699,7 @@ namespace kotte
     }
 
     void Application::delete_prev_game() {
+        //clears handles and held values by structs
         spatial_grid_.clear();
         entities_.clear();
         clear_handles();
@@ -707,6 +712,7 @@ namespace kotte
     }
 
     void Application::clear_ongoing_effects() {
+        //clears all the round or frame based logic
         place_bomb_requests_.clear();
         bomb_detonated_facts_.clear();
         destroy_entity_requests_.clear();
@@ -716,6 +722,7 @@ namespace kotte
     }
 
     void Application::create_new_game() {
+        //restarts game, change the seed or do not reset random if you want it to be different
         random_ = Random(seed_);
         populate_entities();
         initialize_enemies();
@@ -873,6 +880,7 @@ namespace kotte
         return {top_left.x, top_left.y, size.x, size.y};
     }
     void Application::player_is_colliding_with_enemy() {
+        //player takes damage here
         const SpatialQuery spatial_query = spatial_grid_.query(entity_collision_bounds(player()));
         
         for (const EntityHandle& entity_handle : spatial_query.entity_handles)
@@ -943,7 +951,7 @@ namespace kotte
             // Narrow phase: exact-test the remaining solid candidate.
             ++collision_diagnostics_.exact_tests;
             if(CheckCollisionRecs(proposed_collision_bounds, entity_collision_bounds(*candidate))){
-
+                //to allow for pickups and exiting bombs
                 if (candidate->kind == EntityKind::power_up && proposed_entity.kind == EntityKind::player) {
                     power_up_picked_up_ = true;
                 }
@@ -1016,6 +1024,7 @@ namespace kotte
     }
 
     bool Application::owner_has_max_active_bombs(EntityHandle owner) const noexcept{
+        //returns true if the number of bombs with owner handle same as owner is greater than or equal to max allowed amount.
         int number_of_active_bombs = 0;
         std::ranges::for_each(active_bomb_handles_, [this, owner, &number_of_active_bombs](EntityHandle bomb_handle){
             const Entity* bomb = entities_.try_get(bomb_handle);

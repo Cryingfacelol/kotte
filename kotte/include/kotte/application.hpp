@@ -164,7 +164,7 @@ namespace kotte
         static constexpr Color wall_color_{0x78, 0x5f, 0x47, 0xff};
    
         int player_max_health_ = 10;
-        int player_max_bombs_ = 2;
+        int player_max_bombs_ = 5;
         bool player_is_alive_;
         bool power_up_picked_up_;
         bool invulnerability_effect_playing = false;
@@ -172,7 +172,7 @@ namespace kotte
 
         GameState current_game_state_;
         int enemies_killed_ = 0;
-        int number_of_enemies_to_kill_to_win = 5;
+        int number_of_enemies_to_kill_to_win = 10;
 
         Window window_; // Constructed first, destroyed last.
         Camera camera_;
