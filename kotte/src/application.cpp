@@ -55,7 +55,7 @@ namespace kotte
         if (current_game_state_ == GameState::playing) {
             update_gameplay(delta_time);//needs bomb request here
             update_timed_gameplay(delta_time);
-            resolve_gameplay_facts();
+            resolve_gameplay_facts(); //the blast tile is resolved here, detonated bombs are resolved here too
             apply_structural_mutations();//destroys/creates entities // bomb requests dissapear here
             update_presentation(delta_time);
             update_gamestate();
@@ -128,12 +128,27 @@ namespace kotte
         }
         for(const EntityHandle bomb_handle : active_bomb_handles_){
             Entity* bomb = entities_.try_get(bomb_handle);
-            if(bomb == nullptr || !bomb->bomb_state.has_value()
-                || bomb->bomb_state->detonation_requested){
+            if(bomb == nullptr || !bomb->bomb_state.has_value()){
+                continue;
+            }
+            BombState& state = *bomb->bomb_state;
+            if (state.detonation_requested){
+                if (state.fuse_remaining > (bomb_fuse_seconds_ -0.1f)) {
+                    state.fuse_remaining -= delta_time;
+                }
+
+                else {
+                    state.fuse_remaining = 0.0f;
+                    bomb_detonated_facts_.push_back({
+                        bomb_handle,
+                        state.owner,
+                        bomb->world_position,
+                        state.blast_range
+                    });
+                }
                 continue;
             }
 
-            BombState& state = *bomb->bomb_state;
             state.fuse_remaining -= delta_time;
             if(state.fuse_remaining > 0.0f){
                 continue;
@@ -434,6 +449,13 @@ namespace kotte
 
             switch(candidate->kind){
             case EntityKind::bomb:
+            {
+                BombState& state = entity(handle).bomb_state.value();
+                state.detonation_requested = true;
+                state.fuse_remaining = bomb_fuse_seconds_;
+
+                break;
+            }
             case EntityKind::enemy:
                 destroy_entity_requests_.push_back({handle});
                 break;
