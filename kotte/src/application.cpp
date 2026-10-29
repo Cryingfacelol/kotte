@@ -690,6 +690,7 @@ namespace kotte
         destroy_entity_requests_.clear();
         blast_effects_.clear();
         enemies_killed_ = 0;
+        invulnerability_effect_playing = false;
     }
 
     void Application::create_new_game() {
