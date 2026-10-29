@@ -176,20 +176,20 @@ namespace kotte
             entity(entity(fact.bomb).bomb_state.value().owner).player_state.value().ignores_bomb = false;
         }
         if (player_is_alive_) {
-            if (entity(player_handle_).player_state.value().is_invincible 
+            if (entity(player_handle_).player_state.value().is_invulnerable 
                 && entity(player_handle_).player_state.value().time_until_player_can_be_hurt <= 0.1f) 
             { 
                 invulnerability_effect_playing = false;
 
                 if (entity(player_handle_).player_state.value().time_until_player_can_be_hurt <= 0.0f)
                 {
-                    entity(player_handle_).player_state.value().is_invincible = false;
+                    entity(player_handle_).player_state.value().is_invulnerable = false;
                 }
             }
-            if (player_is_colliding_with_enemy() && !entity(player_handle_).player_state.value().is_invincible)
+            if (player_is_colliding_with_enemy() && !entity(player_handle_).player_state.value().is_invulnerable)
             { 
                 invulnerability_effect_playing = true;
-                entity(player_handle_).player_state.value().is_invincible = true;
+                entity(player_handle_).player_state.value().is_invulnerable = true;
                 entity(player_handle_).player_state.value().time_until_player_can_be_hurt = damage_cooldown_;
             }
             if(entity(player_handle_).player_state.value().health <= 0)
@@ -439,7 +439,7 @@ namespace kotte
                 blocked_by_crate = true;
                 break;
             case EntityKind::player:
-                if (entity(player_handle_).player_state.value().is_invincible == false 
+                if (entity(player_handle_).player_state.value().is_invulnerable == false 
                     && entity(player_handle_).player_state.value().health > 0) 
                 {
                     player_loses_health(); 
@@ -700,7 +700,7 @@ namespace kotte
                 .health = player_max_health_,
                 .time_until_player_can_be_hurt = 0,
                 .is_alive = true,
-                .is_invincible = false,
+                .is_invulnerable = false,
                 .ignores_bomb = false,
             } 
         };
@@ -859,7 +859,7 @@ namespace kotte
             }
             if (chosen_entity.kind == EntityKind::enemy) //doesnt kill health if not the right kind
             {
-                if (entity(player_handle_).player_state.value().is_invincible == false) { player_loses_health(); }
+                if (entity(player_handle_).player_state.value().is_invulnerable == false) { player_loses_health(); }
                 if (collided == false) { collided = true; }
             }
         }

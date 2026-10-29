@@ -34,7 +34,7 @@ namespace kotte
         int health;
         float time_until_player_can_be_hurt;
         bool is_alive = true;
-        bool is_invincible = false;
+        bool is_invulnerable = false;
         bool ignores_bomb = false;
     };
 
