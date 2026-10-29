@@ -177,12 +177,18 @@ namespace kotte
         }
         if (player_is_alive_) {
             if (entity(player_handle_).player_state.value().is_invincible 
-                && entity(player_handle_).player_state.value().time_until_player_can_be_hurt <= 0) 
+                && entity(player_handle_).player_state.value().time_until_player_can_be_hurt <= 0.1f) 
             { 
-                entity(player_handle_).player_state.value().is_invincible = false;
+                invulnerability_effect_playing = false;
+
+                if (entity(player_handle_).player_state.value().time_until_player_can_be_hurt <= 0.0f)
+                {
+                    entity(player_handle_).player_state.value().is_invincible = false;
+                }
             }
             if (player_is_colliding_with_enemy() && !entity(player_handle_).player_state.value().is_invincible)
             { 
+                invulnerability_effect_playing = true;
                 entity(player_handle_).player_state.value().is_invincible = true;
                 entity(player_handle_).player_state.value().time_until_player_can_be_hurt = damage_cooldown_;
             }
@@ -559,9 +565,13 @@ namespace kotte
                 if (visible_candidate->kind == EntityKind::bomb || visible_candidate->kind == EntityKind::power_up) {
                     layer = RenderLayer::ground;
                 }
+                Color color = entity_color(visible_candidate->kind);
+                if (invulnerability_effect_playing == true && visible_candidate->kind == EntityKind::player) {
+                    color = player_invulnerable_color_;
+                }
                 renderer_.submit({
                     bounds,
-                    entity_color(visible_candidate->kind),
+                    color,
                     layer,
                     visible_candidate->world_position.y,
                     entity_roundness(visible_candidate->kind)

@@ -154,7 +154,8 @@ namespace kotte
             Color{0x3d, 0x4f, 0x59, 0xff},
             Color{0x42, 0x55, 0x60, 0xff}
         };
-        static constexpr Color player_color_{0xf2, 0xc1, 0x4e, 0xff};
+        static constexpr Color player_color_{ 0xf2, 0xc1, 0x4e, 0xff };
+        static constexpr Color player_invulnerable_color_ = RED;
         static constexpr Color bomb_color_{0x20, 0x24, 0x2a, 0xff};
         static constexpr Color blast_color_{0xf2, 0x8f, 0x3b, 0xe8};
         static constexpr Color crate_color_{0xb0, 0x72, 0x3c, 0xff};
@@ -165,6 +166,7 @@ namespace kotte
         int player_max_health_ = 10;
         bool player_is_alive_;
         bool power_up_picked_up_;
+        bool invulnerability_effect_playing = false;
         static constexpr float damage_cooldown_ = 0.5f;
 
         GameState current_game_state_;
