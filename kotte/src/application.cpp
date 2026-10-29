@@ -334,9 +334,8 @@ namespace kotte
             const Entity* owner = entities_.try_get(request.owner);
             if(owner == nullptr 
                 || owner->kind != EntityKind::player
-                || owner_has_active_bomb(request.owner)
+                || owner_has_max_active_bombs(request.owner)
                 || owner->player_state.value().ignores_bomb
-                || active_bomb_handles_.size() >= 3
                 )
             {
                 continue;
@@ -990,13 +989,18 @@ namespace kotte
         return static_cast<CardinalDirection>(new_value);
     }
 
-    bool Application::owner_has_active_bomb(EntityHandle owner) const noexcept{
-        return std::ranges::any_of(active_bomb_handles_, [this, owner](EntityHandle bomb_handle){
+    bool Application::owner_has_max_active_bombs(EntityHandle owner) const noexcept{
+        int number_of_active_bombs = 0;
+        std::ranges::for_each(active_bomb_handles_, [this, owner, &number_of_active_bombs](EntityHandle bomb_handle){
             const Entity* bomb = entities_.try_get(bomb_handle);
-            return bomb != nullptr
+            if (bomb != nullptr
                 && bomb->bomb_state.has_value()
-                && bomb->bomb_state->owner == owner;
+                && bomb->bomb_state->owner == owner)
+            {
+                number_of_active_bombs++;
+            }
         });
+        return number_of_active_bombs >= player_max_bombs_;
     }
 
     Vector2 Application::tile_centre(Vector2 world_position) noexcept{
