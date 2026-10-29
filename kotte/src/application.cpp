@@ -186,11 +186,9 @@ namespace kotte
                     entity(player_handle_).player_state.value().is_invulnerable = false;
                 }
             }
-            if (player_is_colliding_with_enemy() && !entity(player_handle_).player_state.value().is_invulnerable)
+            if (!entity(player_handle_).player_state.value().is_invulnerable)
             { 
-                invulnerability_effect_playing = true;
-                entity(player_handle_).player_state.value().is_invulnerable = true;
-                entity(player_handle_).player_state.value().time_until_player_can_be_hurt = damage_cooldown_;
+                player_is_colliding_with_enemy();
             }
             if(entity(player_handle_).player_state.value().health <= 0)
             {
@@ -338,6 +336,7 @@ namespace kotte
                 || owner->kind != EntityKind::player
                 || owner_has_active_bomb(request.owner)
                 || owner->player_state.value().ignores_bomb
+                || active_bomb_handles_.size() >= 3
                 )
             {
                 continue;
@@ -358,7 +357,6 @@ namespace kotte
             // views used by spatial queries and timed gameplay.
             spatial_grid_.insert(bomb_handle, entity_world_bounds(bomb));
             active_bomb_handles_.push_back(bomb_handle);
-            
         }
         
         place_bomb_requests_.clear();
@@ -472,6 +470,9 @@ namespace kotte
     }
     void Application::player_loses_health() {
         entity(player_handle_).player_state.value().health--;
+        entity(player_handle_).player_state.value().is_invulnerable = true;
+        invulnerability_effect_playing = true;
+        entity(player_handle_).player_state.value().time_until_player_can_be_hurt = damage_cooldown_;
     }
     void Application::update_camera(float delta_time) noexcept{
         (void) delta_time; // name the argument to avoid the static analyzer yelling at us. :) We'll animate the camera later.
@@ -844,8 +845,7 @@ namespace kotte
         const Vector2 top_left = entity.world_position - Vector2{size.x / 2.0f, size.y};
         return {top_left.x, top_left.y, size.x, size.y};
     }
-    bool Application::player_is_colliding_with_enemy() {
-        bool collided = false;
+    void Application::player_is_colliding_with_enemy() {
         const SpatialQuery spatial_query = spatial_grid_.query(entity_collision_bounds(player()));
         
         for (const EntityHandle& entity_handle : spatial_query.entity_handles)
@@ -860,10 +860,8 @@ namespace kotte
             if (chosen_entity.kind == EntityKind::enemy) //doesnt kill health if not the right kind
             {
                 if (entity(player_handle_).player_state.value().is_invulnerable == false) { player_loses_health(); }
-                if (collided == false) { collided = true; }
             }
         }
-        return collided;
     }
     bool Application::entity_movement_is_blocked(
         EntityHandle moving_entity_handle,

@@ -121,7 +121,7 @@ namespace kotte
         void clear_ongoing_effects();
         void player_loses_health();
         void player_bomb_on_same_space_solution(EntityHandle bomb_handle);
-        bool player_is_colliding_with_enemy();
+        void player_is_colliding_with_enemy();
         [[nodiscard]] Entity& entity(EntityHandle handle) noexcept;
         [[nodiscard]] const Entity& entity(EntityHandle handle) const noexcept;
         [[nodiscard]] Entity& player() noexcept;
@@ -164,6 +164,7 @@ namespace kotte
         static constexpr Color wall_color_{0x78, 0x5f, 0x47, 0xff};
    
         int player_max_health_ = 10;
+        int player_max_bombs_ = 2;
         bool player_is_alive_;
         bool power_up_picked_up_;
         bool invulnerability_effect_playing = false;
