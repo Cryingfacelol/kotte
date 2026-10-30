@@ -114,18 +114,16 @@ namespace kotte
         void populate_entities();
         void initialize_enemies();
         void create_player();
-        void destroy_player();
         void create_power_up(int x, int y);
-        void destroy_power_up();
         void clear_handles();
         void clear_ongoing_effects();
-        void player_loses_health();
+        void player_loses_health(EntityHandle player_handle);
         void player_bomb_on_same_space_solution(EntityHandle bomb_handle);
-        void player_is_colliding_with_enemy();
+        void player_is_colliding_with_enemy(EntityHandle player_handle);
         [[nodiscard]] Entity& entity(EntityHandle handle) noexcept;
         [[nodiscard]] const Entity& entity(EntityHandle handle) const noexcept;
-        [[nodiscard]] Entity& player() noexcept;
-        [[nodiscard]] const Entity& player() const noexcept;
+        [[nodiscard]] Entity& player(EntityHandle player_handle) noexcept;
+        [[nodiscard]] const Entity& player(EntityHandle player_handle) const noexcept;
         [[nodiscard]] Rectangle entity_world_bounds(const Entity& entity) const noexcept;
         [[nodiscard]] Rectangle entity_collision_bounds(const Entity& entity) const noexcept;
         [[nodiscard]] bool entity_movement_is_blocked(
@@ -179,6 +177,8 @@ namespace kotte
         Random random_;
         TileMap map_;
         EntityStore entities_;
+        std::vector<EntityHandle> player_handles_;
+        std::vector<EntityHandle> power_up_handles_;
         std::vector<EntityHandle> enemy_handles_;
         std::vector<EntityHandle> active_bomb_handles_;
         SpatialGrid spatial_grid_;
@@ -190,8 +190,6 @@ namespace kotte
         std::vector<BlastEffect> blast_effects_;
         CollisionDiagnostics collision_diagnostics_;
         std::uint64_t seed_;
-        EntityHandle player_handle_;
-        EntityHandle power_up_handle_;
         bool exit_requested_ = false;
     };
 }

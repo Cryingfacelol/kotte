@@ -113,18 +113,20 @@ namespace kotte
 
     void Application::update_gameplay(float delta_time){
         // The player and every enemy are movers; each asks its own collision question.
-        if (player_is_alive_) { update_player(delta_time); }
+        update_player(delta_time); 
         update_enemies(delta_time);
-        if (player_is_alive_) {
-            queue_bomb_placement();
-        }
+        
+        queue_bomb_placement();
+        
         
     }
 
     void Application::update_timed_gameplay(float delta_time){
         // This list is independent of camera queries, so off-screen fuses advance.
-        if (entity(player_handle_).player_state.value().time_until_player_can_be_hurt >0) {
-            entity(player_handle_).player_state.value().time_until_player_can_be_hurt -= delta_time; 
+        for (const EntityHandle player_handle : player_handles_) {
+            if (entity(player_handle).player_state.value().time_until_player_can_be_hurt > 0) {
+                entity(player_handle).player_state.value().time_until_player_can_be_hurt -= delta_time;
+            }
         }
         for(const EntityHandle bomb_handle : active_bomb_handles_){
             Entity* bomb = entities_.try_get(bomb_handle);
@@ -190,27 +192,28 @@ namespace kotte
             blast_effects_.push_back(std::move(effect));
             entity(fact.bomb).bomb_state.value().owner_ignores_bomb = false;
         }
-        if (player_is_alive_) {
+        for (const EntityHandle player_handle : player_handles_) {
             //handles player death, damage from enemies, and damage cooldown
-            if (entity(player_handle_).player_state.value().is_invulnerable 
-                && entity(player_handle_).player_state.value().time_until_player_can_be_hurt <= 0.1f) 
+            if (entity(player_handle).player_state.value().is_invulnerable 
+                && entity(player_handle).player_state.value().time_until_player_can_be_hurt <= 0.1f) 
             { 
                 invulnerability_effect_playing = false;
 
-                if (entity(player_handle_).player_state.value().time_until_player_can_be_hurt <= 0.0f)
+                if (entity(player_handle).player_state.value().time_until_player_can_be_hurt <= 0.0f)
                 {
-                    entity(player_handle_).player_state.value().is_invulnerable = false;
+                    entity(player_handle).player_state.value().is_invulnerable = false;
                 }
             }
-            if (!entity(player_handle_).player_state.value().is_invulnerable)
+            if (!entity(player_handle).player_state.value().is_invulnerable)
             { 
-                player_is_colliding_with_enemy();
+                player_is_colliding_with_enemy(player_handle);
             }
-            if(entity(player_handle_).player_state.value().health <= 0)
+            if(entity(player_handle).player_state.value().health <= 0)
             {
-                entity(player_handle_).player_state.value().is_alive = false;
+                entity(player_handle).player_state.value().is_alive = false;
+                destroy_entity_requests_.push_back({ player_handle});
             }
-            player_is_alive_ = entity(player_handle_).player_state.value().is_alive;
+            player_is_alive_ = entity(player_handle).player_state.value().is_alive;
         }
         
         bomb_detonated_facts_.clear();
@@ -246,53 +249,59 @@ namespace kotte
 
     void Application::update_player(float delta_time){
         const Vector2 direction = frame_actions_.player_movement_direction;
+        for (const EntityHandle player_handle : player_handles_) {//will likely bug out if there is more than one player
+            Entity& player_entity = player(player_handle);
+            const Rectangle old_world_bounds = entity_world_bounds(player_entity);
+            const Vector2 displacement = direction * (player_speed_ * delta_time);
 
-        Entity& player_entity = player();
-        const Rectangle old_world_bounds = entity_world_bounds(player_entity);
-        const Vector2 displacement = direction * (player_speed_ * delta_time);
+            // Separate proposals let a clear axis slide along a blocked one.
+            if(displacement.x != 0.0f){
+                try_move_player({displacement.x, 0.0f});
+            }
+            if(displacement.y != 0.0f){
+                try_move_player({0.0f, displacement.y});
+            }
 
-        // Separate proposals let a clear axis slide along a blocked one.
-        if(displacement.x != 0.0f){
-            try_move_player({displacement.x, 0.0f});
+            const Rectangle player_bounds = entity_world_bounds(player_entity);
+            const Vector2 bounds_offset = player_entity.world_position - Vector2{player_bounds.x, player_bounds.y};
+            const float floor_left = static_cast<float>(tile_size_);
+            const float floor_top = static_cast<float>(tile_size_);
+            const float floor_right = static_cast<float>((map_.width() - 1) * tile_size_);
+            const float floor_bottom = static_cast<float>((map_.height() - 1) * tile_size_);
+            const Vector2 minimum_position{floor_left + bounds_offset.x, floor_top + bounds_offset.y};
+            const Vector2 maximum_position{floor_right - bounds_offset.x, floor_bottom};
+            player_entity.world_position = Vector2Clamp(player_entity.world_position, minimum_position, maximum_position);
+
+            const Rectangle new_world_bounds = entity_world_bounds(player_entity);
+        
+            spatial_grid_.update(player_handle, old_world_bounds, new_world_bounds);
         }
-        if(displacement.y != 0.0f){
-            try_move_player({0.0f, displacement.y});
-        }
-
-        const Rectangle player_bounds = entity_world_bounds(player_entity);
-        const Vector2 bounds_offset = player_entity.world_position - Vector2{player_bounds.x, player_bounds.y};
-        const float floor_left = static_cast<float>(tile_size_);
-        const float floor_top = static_cast<float>(tile_size_);
-        const float floor_right = static_cast<float>((map_.width() - 1) * tile_size_);
-        const float floor_bottom = static_cast<float>((map_.height() - 1) * tile_size_);
-        const Vector2 minimum_position{floor_left + bounds_offset.x, floor_top + bounds_offset.y};
-        const Vector2 maximum_position{floor_right - bounds_offset.x, floor_bottom};
-        player_entity.world_position = Vector2Clamp(player_entity.world_position, minimum_position, maximum_position);
-
-        const Rectangle new_world_bounds = entity_world_bounds(player_entity);
-        spatial_grid_.update(player_handle_, old_world_bounds, new_world_bounds);
     }
 
     void Application::try_move_player(Vector2 axis_displacement){
         // Propose one horizontal or vertical player movement.
         ++collision_diagnostics_.movement_attempts;
+        for (const EntityHandle player_handle : player_handles_) {
 
-        Entity& player_entity = player();
-        const Vector2 proposed_position = player_entity.world_position + axis_displacement;
+            Entity& player_entity = player(player_handle);
+            const Vector2 proposed_position = player_entity.world_position + axis_displacement;
 
-        // Detect possible contacts using the mover's proposed collision bounds.
-        for (EntityHandle bomb_handle : active_bomb_handles_){
-            //allows player to walk out of placed bombs
-            player_bomb_on_same_space_solution(bomb_handle);
+            // Detect possible contacts using the mover's proposed collision bounds.
+            for (EntityHandle bomb_handle : active_bomb_handles_){
+                //allows player to walk out of placed bombs
+                player_bomb_on_same_space_solution(bomb_handle);
+            }
+        
+            if (entity_movement_is_blocked(player_handle, proposed_position)) {
+                // Respond by rejecting only this blocked player axis.
+                ++collision_diagnostics_.blocked_moves;
+                return;
+            }
+
+            // Accept the clear proposal; grid synchronization happens after both axes.
+            player_entity.world_position = proposed_position;
         }
-        if(entity_movement_is_blocked(player_handle_, proposed_position)){ 
-            // Respond by rejecting only this blocked player axis.
-            ++collision_diagnostics_.blocked_moves;
-            return;
-        }
 
-        // Accept the clear proposal; grid synchronization happens after both axes.
-        player_entity.world_position = proposed_position;
     }
 
     void Application::update_enemies(float delta_time){
@@ -334,10 +343,12 @@ namespace kotte
 
         // Capture values rather than an Entity reference because the request
         // deliberately outlives this simulation phase.
-        place_bomb_requests_.push_back({
-            player_handle_,
-            tile_centre(player().world_position)
-        });
+        for (const EntityHandle player_handle : player_handles_) {
+            place_bomb_requests_.push_back({
+                player_handle,
+                tile_centre(player(player_handle).world_position)
+                });
+        }
     }
 
     void Application::apply_bomb_placements(){
@@ -410,12 +421,15 @@ namespace kotte
             assert(destroyed);
             (void) destroyed;
         }
-        if (!player_is_alive_) { destroy_player();}
-        if (power_up_picked_up_) { destroy_power_up(); }
         // These update lists are non-owning views. A single cleanup pass keeps
         // their iteration dense without teaching each destruction source about
         // every list that happens to reference an entity.
-        std::erase_if(enemy_handles_, [this](EntityHandle handle){
+        std::erase_if(player_handles_, [this](EntityHandle handle) {
+            return !entities_.contains(handle);
+            }); std::erase_if(enemy_handles_, [this](EntityHandle handle) {
+                return !entities_.contains(handle);
+                });
+        std::erase_if(power_up_handles_, [this](EntityHandle handle){
             return !entities_.contains(handle);
         });
         std::erase_if(active_bomb_handles_, [this](EntityHandle handle){
@@ -468,10 +482,10 @@ namespace kotte
                 break;
             case EntityKind::player:
                 //decreases health by 1 and makes invulnerable
-                if (entity(player_handle_).player_state.value().is_invulnerable == false 
-                    && entity(player_handle_).player_state.value().health > 0) 
+                if (entity(handle).player_state.value().is_invulnerable == false 
+                    && entity(handle).player_state.value().health > 0) 
                 {
-                    player_loses_health(); 
+                    player_loses_health(handle); 
                 }
                 break;
             }
@@ -499,16 +513,20 @@ namespace kotte
             }
         }
     }
-    void Application::player_loses_health() {
-        entity(player_handle_).player_state.value().health--;
-        entity(player_handle_).player_state.value().is_invulnerable = true;
+    void Application::player_loses_health(EntityHandle player_handle) {
+        entity(player_handle).player_state.value().health--;
+        entity(player_handle).player_state.value().is_invulnerable = true;
         invulnerability_effect_playing = true;
-        entity(player_handle_).player_state.value().time_until_player_can_be_hurt = damage_cooldown_;
+        entity(player_handle).player_state.value().time_until_player_can_be_hurt = damage_cooldown_;
     }
     void Application::update_camera(float delta_time) noexcept{
         (void) delta_time; // name the argument to avoid the static analyzer yelling at us. :) We'll animate the camera later.
         camera_.set_viewport_size(window_.size());
-        camera_.set_centre(player().world_position);
+        for (const EntityHandle player_handle: player_handles_)
+        {
+            camera_.set_centre(player(player_handle).world_position);
+        }
+        
     }
 
     void Application::render(){
@@ -670,8 +688,10 @@ namespace kotte
 
             DrawText("move: WASD/arrows | bomb: Space | quit: Q/Escape", 10, window_.height() - 30, 20, LIGHTGRAY);
 
-            diagnostics = std::format("player health: {}", entity(player_handle_).player_state.value().health);
-            DrawText(diagnostics.c_str(), 10, window_.height() - 100, 20, RAYWHITE);
+            for (const EntityHandle player_handle : player_handles_) {
+                diagnostics = std::format("player health: {}", entity(player_handle).player_state.value().health);
+                DrawText(diagnostics.c_str(), 10, window_.height() - 100, 20, RAYWHITE);
+            }
 
             DrawText("current game state: playing", 10, 130, 20, RAYWHITE);
 
@@ -739,20 +759,10 @@ namespace kotte
                 .is_invulnerable = false,
             } 
         };
-        player_handle_ = entities_.create(player_entity);
-        spatial_grid_.insert(player_handle_, entity_world_bounds(player_entity));
+        const EntityHandle handle = entities_.create(player_entity);
+        spatial_grid_.insert(handle, entity_world_bounds(player_entity));
         player_is_alive_ = true;
-    }
-
-    void Application::destroy_player() {
-        const Entity* doomed = entities_.try_get(player_handle_);
-        if (doomed == nullptr) {
-            return;
-        }
-        spatial_grid_.remove(player_handle_, entity_world_bounds(*doomed));
-        const bool destroyed = entities_.destroy(player_handle_);
-        assert(destroyed);
-        (void)destroyed;
+        player_handles_.push_back(handle);
     }
 
     void Application::create_power_up(int x, int y) {
@@ -760,22 +770,16 @@ namespace kotte
             static_cast<float>(x * tile_size_ + tile_size_ / 2),
             static_cast<float>(y * tile_size_ + tile_size_ / 2)
         };
-        const Entity power_up{ EntityKind::power_up, world_position };
-        power_up_handle_ = entities_.create(power_up);
-        spatial_grid_.insert(power_up_handle_, entity_world_bounds(power_up));
+        const Entity power_up{
+            EntityKind::power_up, 
+            world_position 
+        };
+        const EntityHandle handle = entities_.create(power_up);
+        spatial_grid_.insert(handle, entity_world_bounds(power_up));
         power_up_picked_up_ = false;
+        power_up_handles_.push_back(handle);
     }
 
-    void Application::destroy_power_up() {
-        const Entity* doomed = entities_.try_get(power_up_handle_);
-        if (doomed == nullptr) {
-            return;
-        }
-        spatial_grid_.remove(power_up_handle_, entity_world_bounds(*doomed));
-        const bool destroyed = entities_.destroy(power_up_handle_);
-        assert(destroyed);
-        (void)destroyed;
-    }
 
     void Application::populate_entities(){
         // Match the generation density so initial creation does not repeatedly
@@ -841,12 +845,12 @@ namespace kotte
         return *resolved;
     }
 
-    Entity& Application::player() noexcept{
-        return entity(player_handle_);
+    Entity& Application::player(EntityHandle player_handle) noexcept{
+        return entity(player_handle);
     }
 
-    const Entity& Application::player() const noexcept{
-        return entity(player_handle_);
+    const Entity& Application::player(EntityHandle player_handle) const noexcept{
+        return entity(player_handle);
     }
 
     Rectangle Application::entity_world_bounds(const Entity& entity) const noexcept{
@@ -879,25 +883,26 @@ namespace kotte
         const Vector2 top_left = entity.world_position - Vector2{size.x / 2.0f, size.y};
         return {top_left.x, top_left.y, size.x, size.y};
     }
-    void Application::player_is_colliding_with_enemy() {
+    void Application::player_is_colliding_with_enemy(EntityHandle player_handle) {
         //player takes damage here
-        const SpatialQuery spatial_query = spatial_grid_.query(entity_collision_bounds(player()));
+        const SpatialQuery spatial_query = spatial_grid_.query(entity_collision_bounds(player(player_handle)));
         
         for (const EntityHandle& entity_handle : spatial_query.entity_handles)
         {
-            if (entities_.try_get(entity_handle) == nullptr || entities_.try_get(player_handle_) == nullptr) {
+            if (entities_.try_get(entity_handle) == nullptr || entities_.try_get(player_handle) == nullptr) {
                 continue;
             }
             const Entity& chosen_entity = entity(entity_handle);
-            if (!CheckCollisionRecs(entity_world_bounds(chosen_entity), entity_world_bounds(player()))) {
+            if (!CheckCollisionRecs(entity_world_bounds(chosen_entity), entity_world_bounds(player(player_handle)))) {
                 continue;
             }
             if (chosen_entity.kind == EntityKind::enemy) //doesnt kill health if not the right kind
             {
-                if (entity(player_handle_).player_state.value().is_invulnerable == false) { player_loses_health(); }
+                if (entity(player_handle).player_state.value().is_invulnerable == false) { player_loses_health(player_handle); }
             }
         }
     }
+    
     bool Application::entity_movement_is_blocked(
         EntityHandle moving_entity_handle,
         Vector2 proposed_position){
@@ -954,6 +959,13 @@ namespace kotte
                 //to allow for pickups and exiting bombs
                 if (candidate->kind == EntityKind::power_up && proposed_entity.kind == EntityKind::player) {
                     power_up_picked_up_ = true;
+                    for (const EntityHandle power_up_handle : power_up_handles_) {
+                        if (power_up_handle == candidate_handle)
+                        {
+                            destroy_entity_requests_.push_back({ power_up_handle });
+                        }
+                        
+                    }
                 }
 
                 if (candidate->kind == EntityKind::bomb && proposed_entity.kind == EntityKind::player ) {
