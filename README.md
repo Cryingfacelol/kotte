@@ -1,14 +1,13 @@
-# Bomberman World — [your game title]
+# Bomberman World — REASONABLE chaos
 
-**Student:** [your name]
-
-> Replace the prompts below and remove these instructions. Keep answers brief. Your implementation explanations and reflection belong in the presentation; you do not need to write them out here. Complete the final section only if seeking Pass with Distinction (VG).
+**Student:** Eva Kristina Sprinchorn
 
 ## How to play
 
-- **Controls:** [movement, bombs, restart, and any extension controls]
-- **Objective and rules:** [how to win/lose; which result wins if both happen together; any extension rules needed to understand the game]
-- **Configurations / demo setup:** [how to select gameplay/stress configurations and use any special setup or debug keys; write “default” where appropriate]
+- **Controls:** Use WASD to move, spawn bomb with SPACEBAR, press R to restart in win or lose menu. Press Q to quit. 
+- **Objective and rules:** Kill 10 enemies to win, if health falls to 0 you lose, if you win and lose at the same time you will win, a blue power up spawns at game starts: it increases bomb range to 5.
+- **Configurations / demo setup:** Default - no special setup required.
+
 
 ## Features and validation
 
@@ -18,47 +17,22 @@ Use the practical checks in the assignment to validate the acceptance conditions
 
 | Feature | Check, observed result, and expected behaviour |
 | --- | --- |
-| 1. Player damage and death | [what I tested, what I observed, and whether it matched the expected behaviour] |
-| 2. Round states and objective | [what I tested, what I observed, and whether it matched the expected behaviour] |
-| 3. Safe restart | [what I tested, what I observed, and whether it matched the expected behaviour] |
-| 4. Solid bombs with owner escape | [what I tested, what I observed, and whether it matched the expected behaviour] |
-| 5. Blast-range pickup | [what I tested, what I observed, and whether it matched the expected behaviour] |
-| [# and name of chosen extension 1] | [what I tested, what I observed, and whether it matched the expected behaviour] |
-| [# and name of chosen extension 2] | [what I tested, what I observed, and whether it matched the expected behaviour] |
-| [# and name of chosen extension 3] | [what I tested, what I observed, and whether it matched the expected behaviour] |
+| 1. Player damage and death | Tested the death of player when it deleted player. The game crashed due to an assert warning about a nullptr issue. It was an expected issue as I could not just delete the player_handle the way the others are deleted. I made the program never run that function using player_handle when player was erased, essentially solving the issue. |
+| 2. Round states and objective | I checked whether the transitions and everything happened when expected, killing myself and winning several times. All transitions were smooth with no leftover behaviour. Expected behaviour was achieved|
+| 3. Safe restart | I tried restarting several times in a row. Realised that the initialisation was working but the erasure of previous game was not working as intended. I made separate clear functions within all of the structs I needed to clear. then it crashed. realised I cleared the cells wrong. Fixed that and then expected behaviour of complete and safe restart was met.|
+| 4. Solid bombs with owner escape | I places several bombes and tried several things like staying inside them then placing a new one. I could not walk through and be blocked in a reliably constant manner. This was not the expected behaviour. Looked over the code and made invincibility a member of the bomb. Worked as expected after.|
+| 5. Blast-range pickup | Tested the range of a bomb placed before pickup after pickup. The range was not increased. Worked as expected. No changes had to be made. |
+| 6. Multiple bombs per owner | Tried placing to replace detonated bombs, tested the power-up. The bombs replace well and had no issue of exceeding the limit, the power up activated on all bombs placed after it was picked up. Behaviour was expected.|
+| 7 Chain reactions | Tested placing many bombs in rows and around enemies. The bombs in blast effect also detonated. Behaviour was expected. Added a delay to the chain though because it was instant. |
+| 8 temporary invulnerability | walked into several enemies and blast effect at the same time. The damage was only taken once before invulnerability kicked in. this was the expected behaviour. Gave a small moment of invulnerability with no colour for play experience. |
 
-Example: “I ended a round with live bombs and restarted three times to check that old-round state was cleared. No old explosions appeared, and bomb capacity reset each time.” Report your actual results, including any failures or remaining limitations; stating that something “works” does not describe a check.
 
-**Known issues:** [remaining problems and how to encounter them, or “None known after testing”]
+**Known issues:** bombs are not visible when placed on a crate.
 
 ## Sources and assistance
 
 This project builds on the shared Kotte foundations.
 
-[Briefly identify meaningful external code/resources, discussion or collaboration, and AI assistance. Link to sources where relevant, say what they contributed, and explain what you checked yourself. State “None beyond the course material” if applicable. No prompt transcript or activity diary is needed. Retain required licence/attribution notices.]
-
-## Architectural investigation — VG only
-
-Delete this section for a G submission. For VG, pose a focused engineering question about one decision in your implementation, investigate it, and draw a conclusion from evidence. Documenting the explanation already required for G is not enough. Aim for half a page to one page, excluding small tables, diagrams, or code excerpts. You can use the same decision in your presentation too.
-
-### Decision
-
-[State the question you are investigating and the implementation decision it concerns. Describe your current approach and a plausible alternative. Identify the relevant code. You do not need to implement the alternative.]
-
-### Method
-
-[How did you investigate the decision? Give enough detail to reproduce the key observation: setup, input, configuration/seed, and the test, trace, debugger inspection, or other method used.]
-
-### Evidence
-
-[What did you actually observe in your game? Include the relevant result or a small excerpt, table, or link to supporting material.]
-
-### Interpretation
-
-[Explain why it happened using the relevant code or architecture. Analyse at least one edge case, failure, defect, limitation, or trade-off illustrated by the investigation. Discuss relevant consequences for correctness, maintainability, performance, and/or scalability; you do not need to cover all four.]
-
-### Conclusion
-
-[When is your approach appropriate, what limits it, and when might an alternative become preferable? Base the conclusion on your evidence. Confirming that the current approach is suitable is a valid result.]
-
-<!-- Submission: commit and push this README with your source to GitHub or the internal Gitea server. Submit the final commit link and a runnable Release ZIP from that version in Studium. Ensure the teacher can access the repository throughout assessment. -->
+Kuznietsov Illia - who as a very helpful rubber duck. 
+The cpp reference website - very useful for finding and understanding functions. 
+The original kotte code - inspired many of my code solutions(apologies for the butchery). 
